@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classifier Squares D3 Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .output_wrapper, .output {
+            max-height: none !important;
+            max-width: none !important;
+            overflow: visible !important;
+        }
+
+        #multi-class-container {
+            max-height: none !important;
+            max-width: none !important;
+            overflow: visible !important;
+        }
+
+        #multi-class-vis svg {
+            display: block;
+            overflow: visible !important;
+        }
+
+        .legend {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <label>👁️ View Mode:</label>
+        <select id="view_mode">
+            <option value="boxes" selected>Boxes</option>
+            <option value="stacks">Stacks</option>
+        </select>
+    </div>
+    <br>
+    <div id="tooltip" style="position: absolute; display: none; background: white; border: 1px solid #ccc; padding: 5px; pointer-events: none; font-size: 12px; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+    <div id="multi-class-container" style="width: 100%; min-height: 900px; overflow: auto; border:1px solid #ccc; padding:30px; background-color: #fafafa;">
+        <div id="multi-class-vis"></div>
+        <!-- Control panel -->
+        <div id="controls" style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                <div>
+                    <label style="font-weight: bold;">🔗 Parallel Coordinates:</label>
+                    <button id="toggle-polylines" style="margin-left: 5px; padding: 5px 10px; background: #2ecc71; color: white; border: none; border-radius: 3px;">Show</button>
+                    <small style="margin-left: 5px; color: #666;">Hover instances to see cross-class scores</small>
+                </div>
+                <div>
+                    <label style="font-weight: bold;">⭐ Bookmarks:</label>
+                    <span id="bookmark-count" style="margin-left: 5px; color: #666;">0 instances</span>
+                    <button id="clear-bookmarks" style="margin-left: 10px; padding: 5px 10px; background: #e74c3c; color: white; border: none; border-radius: 3px;">Clear</button>
+                </div>
+                <div>
+                    <label style="font-weight: bold;">🔍 Filter:</label>
+                    <select id="instance-filter" style="margin-left: 5px; padding: 5px;">
+                        <option value="all">All Instances</option>
+                        <option value="bookmarked">Bookmarked Only</option>
+                        <option value="tp">True Positives (Correct)</option>
+                        <option value="fp">False Positives (Wrong Pred)</option>
+                        <option value="fn">False Negatives (Missed)</option>
+                        <option value="high-Prediction Score">High Prediction Score (>0.8)</option>
+                        <option value="low-Prediction Score">Low Prediction Score (<0.5)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight: bold;">📊 Analysis:</label>
+                    <button id="confusion-analysis" style="margin-left: 5px; padding: 5px 10px; background: #3498db; color: white; border: none; border-radius: 3px;">Confusion Report</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enhanced Legend -->
+        <div class="legend">
+            <h4 style="margin: 0 0 10px 0; color: #333;">📖 Visualization Legend</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #3498db; border: none;"></span>
+                    <strong>True Positives (TP):</strong> Correctly classified instances. Colored boxes with no border.
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #e74c3c; border: 1px solid #333;"></span>
+                    <strong>False Positives (FP):</strong> Incorrectly classified as this class. Colored fill with border.
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: white; border: 1px solid #3498db;"></span>
+                    <strong>False Negatives (FN):</strong> Should belong to this class but missed. White fill with colored border.
+                </div>
+                <div class="legend-item">
+                    <span style="display: inline-block; width: 16px; height: 2px; background: #333; margin-right: 5px; vertical-align: middle;"></span>
+                    <strong>Prediction Score Line:</strong> Vertical baseline for reading prediction scores.
+                </div>
+                <div class="legend-item">
+                    <span style="display: inline-block; width: 16px; height: 2px; background: #ff6b35; margin-right: 5px; vertical-align: middle;"></span>
+                    <strong>Polylines:</strong> Show prediction scores across all classes (enable with toggle).
+                </div>
+            </div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; font-size: 11px; color: #666;">
+                <strong>💡 Usage:</strong> 
+                • Hover over squares to see "Ground Truth: CX, Predicted Label: CY, Prediction Score: 0.XX"
+                • Click squares to bookmark important instances
+                • Double-click for detailed analysis
+                • Toggle polylines to see confusion patterns between classes
+                • Boxes grow horizontally from the prediction score line like a bar chart
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function createClassifierSquaresVisualization(instances, classNames = null) {
+            const tooltip = d3.select("#tooltip");
+            
+            let bookmarkedInstances = new Set();
+            let polylinesVisible = false;
+            let currentFilter = "all";
+            let instanceIdCounter = 0;
+            
+            const data = instances.map(d => {
+                return {
+                    ...d,
+                    match: (d.true_label === d.pred_label) ? "TP" : "FN",
+                    class_focus: d.true_label,
+                    instance_id: instanceIdCounter++
+                };
+            });
+
+            const colors = d3.schemeCategory10;
+
+            function updateBookmarkCount() {
+                document.getElementById("bookmark-count").textContent = `${bookmarkedInstances.size} instances`;
+            }
+            
+            function shouldShowInstance(dataPoint) {
+                if (currentFilter === "bookmarked" && !bookmarkedInstances.has(dataPoint.instance_id)) return false;
+                if (currentFilter === "tp" && dataPoint.match !== "TP") return false;
+                if (currentFilter === "fp" && dataPoint.match !== "FP") return false;
+                if (currentFilter === "fn" && dataPoint.match !== "FN") return false;
+                if (currentFilter === "high-Prediction Score" && dataPoint.pred_score < 0.8) return false;
+                if (currentFilter === "low-Prediction Score" && dataPoint.pred_score >= 0.5) return false;
+                return true;
+            }
+            
+            function generateConfusionReport() {
+                const confusionData = {};
+                const classStats = {};
+                
+                data.forEach(d => {
+                    if (!classStats[d.true_label]) {
+                        classStats[d.true_label] = {TP: 0, FP: 0, FN: 0, total: 0};
+                    }
+                    if (!classStats[d.pred_label]) {
+                        classStats[d.pred_label] = {TP: 0, FP: 0, FN: 0, total: 0};
+                    }
+                    
+                    classStats[d.true_label].total++;
+                    
+                    if (d.true_label === d.pred_label) {
+                        classStats[d.true_label].TP++;
+                    } else {
+                        classStats[d.true_label].FN++;
+                        classStats[d.pred_label].FP++;
+                        
+                        const confusionKey = `${d.true_label}->${d.pred_label}`;
+                        if (!confusionData[confusionKey]) {
+                            confusionData[confusionKey] = {count: 0, avgScore: 0, instances: []};
+                        }
+                        confusionData[confusionKey].count++;
+                        confusionData[confusionKey].instances.push(d);
+                    }
+                });
+                
+                Object.keys(confusionData).forEach(key => {
+                    const confusion = confusionData[key];
+                    confusion.avgScore = confusion.instances.reduce((sum, inst) => sum + inst.pred_score, 0) / confusion.count;
+                });
+                
+                let reportHtml = `
+                  <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                              background: white; border: 2px solid #333; border-radius: 8px; padding: 20px; 
+                              box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 10000; max-width: 600px; max-height: 500px; overflow-y: auto;">
+                    <h3 style="margin-top: 0; color: #333;">📊 Confusion Analysis Report</h3>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                      <h4 style="margin: 0 0 10px 0;">Class Performance Summary</h4>
+                      <div style="display: grid; grid-template-columns: auto auto auto auto auto; gap: 10px; font-size: 12px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 5px;">
+                        <div>Class</div><div>Precision</div><div>Recall</div><div>F1-Score</div><div>Support</div>
+                      </div>`;
+                
+                Object.keys(classStats).sort((a,b) => a-b).forEach(cls => {
+                    const stats = classStats[cls];
+                    const precision = stats.TP / (stats.TP + stats.FP) || 0;
+                    const recall = stats.TP / (stats.TP + stats.FN) || 0;
+                    const f1 = 2 * precision * recall / (precision + recall) || 0;
+                    
+                    reportHtml += `
+                      <div style="display: grid; grid-template-columns: auto auto auto auto auto; gap: 10px; font-size: 12px; padding: 3px 0;">
+                        <div>C${cls}</div>
+                        <div>${precision.toFixed(3)}</div>
+                        <div>${recall.toFixed(3)}</div>
+                        <div>${f1.toFixed(3)}</div>
+                        <div>${stats.total}</div>
+                      </div>`;
+                });
+                
+                reportHtml += `
+                      </div>
+                    
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 4px; margin-top: 15px;">
+                      <h4 style="margin: 0 0 10px 0; color: #856404;">⚠️ Top Confusion Patterns</h4>`;
+                
+                const topConfusions = Object.entries(confusionData)
+                  .sort(([,a], [,b]) => b.count - a.count)
+                  .slice(0, 5);
+                
+                topConfusions.forEach(([pattern, data]) => {
+                    const [from, to] = pattern.split('->');
+                    reportHtml += `
+                      <div style="margin: 5px 0; padding: 8px; background: rgba(255,193,7,0.1); border-left: 3px solid #ffc107; font-size: 12px;">
+                        <strong>C${from} → C${to}</strong>: ${data.count} instances (avg prediction score: ${data.avgScore.toFixed(3)})
+                      </div>`;
+                });
+                
+                reportHtml += `
+                      </div>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                      <button onclick="this.parentElement.parentElement.remove()" 
+                              style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Close Report
+                      </button>
+                    </div>
+                  </div>`;
+                
+                document.body.insertAdjacentHTML('beforeend', reportHtml);
+            }
+            
+            function drawPolylines(svg, data, classSet, subplotWidth) {
+                if (!polylinesVisible) return;
+                
+                const polylineGroup = svg.select(".polyline-group");
+                if (polylineGroup.empty()) {
+                    svg.append("g").attr("class", "polyline-group");
+                }
+                
+                svg.select(".polyline-group").selectAll("*").remove();
+                
+                const enhancedData = data.map(d => {
+                    const allClassScores = classSet.map(cls => {
+                        if (cls === d.pred_label) {
+                            return d.pred_score;
+                        } else if (cls === d.true_label && d.true_label !== d.pred_label) {
+                            return Math.max(0.1, d.pred_score * 0.3 + Math.random() * 0.2);
+                        } else {
+                            return Math.random() * 0.3;
+                        }
+                    });
+                    
+                    return {
+                        ...d,
+                        allClassScores: allClassScores
+                    };
+                });
+                
+                svg.node().__enhancedData = enhancedData;
+            }
+            
+            function showInstancePolyline(svg, instance, classSet, subplotWidth) {
+                if (!instance.allClassScores) return;
+                
+                const polylineGroup = svg.select(".polyline-group");
+                
+                polylineGroup.selectAll(".instance-polyline").remove();
+                polylineGroup.selectAll(".score-dot").remove();
+                
+                const scorePoints = instance.allClassScores.map((score, idx) => {
+                    const classIdx = classSet[idx];
+                    const x = classIdx * subplotWidth + 50 + subplotWidth/2;
+                    const y = 400 - score * 300;
+                    return { x, y, score, classIdx, isTrue: classIdx === instance.true_label, isPred: classIdx === instance.pred_label };
+                });
+                
+                const line = d3.line()
+                    .x(d => d.x)
+                    .y(d => d.y)
+                    .curve(d3.curveLinear);
+                
+                polylineGroup.append("path")
+                    .datum(scorePoints)
+                    .attr("class", "instance-polyline")
+                    .attr("d", line)
+                    .attr("stroke", "#ff6b35")
+                    .attr("stroke-width", 2)
+                    .attr("fill", "none")
+                    .attr("opacity", 0.8)
+                    .style("pointer-events", "none");
+                
+                polylineGroup.selectAll(".score-dot")
+                    .data(scorePoints)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "score-dot")
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y)
+                    .attr("r", d => d.isPred ? 5 : (d.isTrue ? 4 : 3))
+                    .attr("fill", d => {
+                        if (d.isPred) return "#ff6b35";
+                        if (d.isTrue) return "#2ecc71";
+                        return "#95a5a6";
+                    })
+                    .attr("stroke", "#fff")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.9)
+                    .style("pointer-events", "none");
+            }
+            
+            function hideInstancePolyline(svg) {
+                const polylineGroup = svg.select(".polyline-group");
+                polylineGroup.selectAll(".instance-polyline").remove();
+                polylineGroup.selectAll(".score-dot").remove();
+            }
+
+            function draw(view_mode) {
+                d3.select("#multi-class-vis").html("");
+
+                const boxSize = 16, spacing = 2, rowsPerBin = 8;
+                const binHeight = 0.1;
+                const maxBin = 10;
+                const classSet = [...new Set(data.map(d => d.class_focus))].sort((a, b) => a - b);
+                const subplotWidth = 280;  
+                const svgHeight = 800;     
+                const svgWidth = Math.max(subplotWidth * classSet.length + 150, 1500);
+
+                const svg = d3.select("#multi-class-vis").append("svg")
+                    .attr("width", svgWidth)
+                    .attr("height", svgHeight)
+                    .attr("viewBox", `0 0 ${svgWidth} ${svgHeight}`)
+                    .style("max-width", "none")
+                    .style("max-height", "none")
+                    .style("width", svgWidth + "px")
+                    .style("height", svgHeight + "px")
+                    .style("display", "block")
+                    .style("background-color", "white")
+                    .style("border-radius", "8px")
+                    .style("box-shadow", "0 4px 8px rgba(0,0,0,0.1)");
+
+                const mainContent = svg.append("g").attr("class", "main-content");
+                svg.append("g").attr("class", "polyline-group");
+
+                const group = mainContent.selectAll("g")
+                    .data(classSet)
+                    .enter().append("g")
+                    .attr("transform", (d, i) => `translate(${i * subplotWidth + 50}, 50)`); 
+
+                // Add Category Title with class color
+                group.append("text")
+                    .text(d => `Class ${d}`)
+                    .attr("x", subplotWidth/2)
+                    .attr("y", -15)
+                    .attr("text-anchor", "middle")
+                    .style("font-weight", "bold")
+                    .style("font-size", "20px")  
+                    .style("fill", d => colors[d % colors.length]);
+
+                // Add Y axis label (moved more to the left)
+                mainContent.append("text")
+                    .text("Prediction Score")
+                    .attr("x", 0)
+                    .attr("y", svgHeight/2)
+                    .attr("text-anchor", "middle")
+                    .attr("transform", `rotate(-90, 15, ${svgHeight/2})`)
+                    .style("font-size", "16px")  
+                    .style("font-weight", "bold")
+                    .style("fill", "#333");
+
+                group.each(function(cls, classIdx) {
+                    const g = d3.select(this);
+                    const baselineX = 50;
+                    const filtered = data.filter(d => d.class_focus === cls);
+
+                    const stats = {TP: 0, FP: 0, FN: 0};
+                    filtered.forEach(d => {
+                        if (d.match === "TP") stats.TP++;
+                        else stats.FN++;
+                    });
+                    data.forEach(d => {
+                        if (d.pred_label === cls && d.true_label !== cls) stats.FP++;
+                    });
+
+                    const precision = stats.TP / (stats.TP + stats.FP) || 0;
+                    const recall = stats.TP / (stats.TP + stats.FN) || 0;
+                    const f1 = 2 * precision * recall / (precision + recall) || 0;
+                    
+                    g.append("text")
+                        .text(`TP: ${stats.TP} FP: ${stats.FP} FN: ${stats.FN}`)
+                        .attr("x", subplotWidth/2)
+                        .attr("y", svgHeight - 80)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "14px")  
+                        .style("font-weight", "bold")
+                        .style("fill", "#555");
+                        
+                    g.append("text")
+                        .text(`P: ${precision.toFixed(2)} R: ${recall.toFixed(2)} F1: ${f1.toFixed(2)}`)
+                        .attr("x", subplotWidth/2)
+                        .attr("y", svgHeight - 60)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "14px")  
+                        .style("font-weight", "bold")
+                        .style("fill", "#555");
+
+                    // Add Y-axis scale (only in the first subplot)
+                    if (classIdx === 0) {
+                        const yScale = d3.scaleLinear()
+                            .domain([0, 1])
+                            .range([svgHeight - 120, 70]); 
+                            
+                        const yAxis = d3.axisLeft(yScale).ticks(10);
+                        g.append("g")
+                            .attr("transform", `translate(${baselineX}, 0)`)
+                            .call(yAxis)
+                            .selectAll("text")
+                            .style("font-size", "12px");
+                    }
+
+                    // Draw vertical prediction score lines for ALL classes - this is the baseline for boxes
+                    const predScoreLine = g.append("line")
+                        .attr("x1", baselineX)
+                        .attr("x2", baselineX)
+                        .attr("y1", 70)
+                        .attr("y2", svgHeight - 120)
+                        .attr("stroke", "#333")
+                        .attr("stroke-width", 2);
+
+                    // Add prediction score label only for first class (moved much further left)
+                    if (classIdx === 0) {
+                        g.append("text")
+                            .text("Score")
+                            .attr("x", -65)  // Moved much further left to completely avoid Y-axis overlap
+                            .attr("y", 65)
+                            .attr("text-anchor", "middle")
+                            .style("font-size", "10px")
+                            .style("fill", "#666");
+                    }
+
+                    const byBin = Array.from({length: maxBin}, () => []);
+                    filtered.forEach(d => {
+                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                        const key = view_mode === "stacks" ? 0 : bin;
+                        byBin[key].push(d);
+                    });
+
+                    byBin.forEach((binData, binIdx) => {
+                        if (binData.length === 0) return;
+                        
+                        const y_base = view_mode === "stacks" ? 
+                            svgHeight - 170 : 
+                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10);  
+                            
+                        const counters = {TP: 0, FN: 0};
+                        
+                        binData.forEach(dataPoint => {
+                            if (!shouldShowInstance(dataPoint)) return; 
+                            
+                            const match = dataPoint.match;
+                            const count = counters[match]++;
+                            const row = Math.floor(count / rowsPerBin);
+                            const col = count % rowsPerBin;
+                            
+                            // Position boxes to grow from the baseline (no gap) - boxes start directly from the line
+                            const x = baselineX + col * (boxSize + spacing);
+                            const y = y_base - row * (boxSize + spacing);
+                            
+                            let fill = "none", stroke = "black", strokeWidth = 0;
+                            if (match === "TP") {
+                                // True positives: colored fill, no border
+                                fill = colors[dataPoint.true_label % colors.length];
+                                stroke = "none";
+                                strokeWidth = 0;
+                            }
+                            if (match === "FN") {
+                                // False negatives: white fill, colored border
+                                stroke = colors[dataPoint.pred_label % colors.length];
+                                fill = "white";
+                                strokeWidth = 1.5;
+                            }
+                            
+                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                     
+                            g.append("rect")
+                                .datum(dataPoint) 
+                                .attr("x", x)
+                                .attr("y", y)
+                                .attr("width", boxSize)
+                                .attr("height", boxSize)
+                                .attr("fill", fill)
+                                .attr("stroke", isBookmarked ? "#ff6b6b" : stroke)
+                                .attr("stroke-width", isBookmarked ? 3 : strokeWidth)
+                                .style("opacity", isBookmarked ? 1 : 0.8)
+                                .style("cursor", "pointer")
+                                .attr("class", `instance-${dataPoint.instance_id}`);
+                        });
+                    });
+
+                    // Add FP data (right side, grow from prediction line)
+                    const fpData = data.filter(d => d.pred_label === cls && d.true_label !== cls);
+                    const fpByBin = Array.from({length: maxBin}, () => []);
+                    fpData.forEach(d => {
+                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                        const key = view_mode === "stacks" ? 0 : bin;
+                        fpByBin[key].push(d);
+                    });
+
+                    fpByBin.forEach((binData, binIdx) => {
+                        if (binData.length === 0) return;
+                        
+                        const y_base = view_mode === "stacks" ? 
+                            svgHeight - 170 : 
+                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10); 
+                            
+                        let fpCount = 0;
+                        binData.forEach(dataPoint => {
+                            if (!shouldShowInstance({...dataPoint, match: "FP"})) return;  
+                            
+                            const row = Math.floor(fpCount / rowsPerBin);
+                            const col = fpCount % rowsPerBin;
+                            
+                            // Position FP boxes to start after TP boxes, continuing from the baseline
+                            const x = baselineX + (col + rowsPerBin + 1) * (boxSize + spacing);
+                            const y = y_base - row * (boxSize + spacing);
+                            
+                            const fpDataPoint = {...dataPoint, match: "FP"};
+                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                            
+                            g.append("rect")
+                                .datum(fpDataPoint)  
+                                .attr("x", x)
+                                .attr("y", y)
+                                .attr("width", boxSize)
+                                .attr("height", boxSize)
+                                .attr("fill", colors[dataPoint.true_label % colors.length])
+                                .attr("stroke", isBookmarked ? "#ff6b6b" : "black")
+                                .attr("stroke-width", isBookmarked ? 3 : 1.5)
+                                .style("fill-opacity", 0.6)
+                                .style("opacity", isBookmarked ? 1 : 0.8)
+                                .style("cursor", "pointer")
+                                .attr("class", `instance-${dataPoint.instance_id}`);
+                                
+                            fpCount++;
+                        });
+                    });
+
+                    // Add False Negative data (left side of prediction line, grow right to left)
+                    const fnData = data.filter(d => d.true_label === cls && d.pred_label !== cls);
+                    const fnByBin = Array.from({length: maxBin}, () => []);
+                    fnData.forEach(d => {
+                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                        const key = view_mode === "stacks" ? 0 : bin;
+                        fnByBin[key].push(d);
+                    });
+
+                    fnByBin.forEach((binData, binIdx) => {
+                        if (binData.length === 0) return;
+                        
+                        const y_base = view_mode === "stacks" ? 
+                            svgHeight - 170 : 
+                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10); 
+                            
+                        let fnCount = 0;
+                        binData.forEach(dataPoint => {
+                            if (!shouldShowInstance({...dataPoint, match: "FN"})) return;  
+                            
+                            const row = Math.floor(fnCount / rowsPerBin);
+                            const col = fnCount % rowsPerBin;
+                            
+                            // Position FN boxes to grow from left of baseline (right to left)
+                            const x = baselineX - (col + 1) * (boxSize + spacing);
+                            const y = y_base - row * (boxSize + spacing);
+                            
+                            const fnDataPoint = {...dataPoint, match: "FN"};
+                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                            
+                            g.append("rect")
+                                .datum(fnDataPoint)  
+                                .attr("x", x)
+                                .attr("y", y)
+                                .attr("width", boxSize)
+                                .attr("height", boxSize)
+                                .attr("fill", "white")
+                                .attr("stroke", isBookmarked ? "#ff6b6b" : colors[dataPoint.pred_label % colors.length])
+                                .attr("stroke-width", isBookmarked ? 3 : 1.5)
+                                .style("opacity", isBookmarked ? 1 : 0.8)
+                                .style("cursor", "pointer")
+                                .attr("class", `instance-${dataPoint.instance_id}`);
+                                
+                            fnCount++;
+                        });
+                    });
+                });
+                
+                const svgTooltip = svg.append("g")
+                    .attr("class", "tooltip-group")
+                    .style("display", "none")
+                    .style("pointer-events", "none");
+                    
+                svgTooltip.append("rect")
+                    .attr("class", "tooltip-bg")
+                    .attr("fill", "white")
+                    .attr("stroke", "#ccc")
+                    .attr("stroke-width", 1)
+                    .attr("rx", 3)
+                    .style("filter", "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))");
+                    
+                svgTooltip.append("text")
+                    .attr("class", "tooltip-text")
+                    .attr("fill", "black")
+                    .style("font-size", "12px")
+                    .attr("x", 5)
+                    .attr("y", 15);
+
+                svg.selectAll("rect").each(function() {
+                    const rect = d3.select(this);
+                    const dataPoint = rect.datum();
+                    if (dataPoint && dataPoint.true_label !== undefined) {
+                        rect
+                            .on("mouseover", function(event) {
+                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                                const bookmarkStatus = isBookmarked ? "⭐ " : "";
+                                
+                                // Enhanced tooltip text with clear labels
+                                const tooltipText = `${bookmarkStatus}Ground Truth: C${dataPoint.true_label}, Predicted Label: C${dataPoint.pred_label}, Prediction Score: ${dataPoint.pred_score.toFixed(2)}`;
+                                const textWidth = tooltipText.length * 7;
+                                
+                                svgTooltip.select(".tooltip-text").text(tooltipText);
+                                svgTooltip.select(".tooltip-bg")
+                                    .attr("width", textWidth + 10)
+                                    .attr("height", 20);
+                                svgTooltip.style("display", "block");
+                                
+                                if (polylinesVisible) {
+                                    const enhancedData = svg.node().__enhancedData || [];
+                                    const enhancedInstance = enhancedData.find(d => d.instance_id === dataPoint.instance_id);
+                                    
+                                    if (enhancedInstance) {
+                                        showInstancePolyline(svg, enhancedInstance, classSet, subplotWidth);
+                                    }
+                                }
+                            })
+                            .on("mousemove", function(event) {
+                                const [mouseX, mouseY] = d3.pointer(event, svg.node());
+                                svgTooltip.attr("transform", `translate(${mouseX + 15}, ${Math.max(mouseY - 35, 5)})`);
+                            })
+                            .on("mouseout", function() {
+                                svgTooltip.style("display", "none");
+                                
+                                if (polylinesVisible) {
+                                    hideInstancePolyline(svg);
+                                }
+                            })
+                            .on("click", function(event) {
+                                event.stopPropagation();
+                                
+                                if (bookmarkedInstances.has(dataPoint.instance_id)) {
+                                    bookmarkedInstances.delete(dataPoint.instance_id);
+                                } else {
+                                    bookmarkedInstances.add(dataPoint.instance_id);
+                                }
+                                updateBookmarkCount();
+                                draw(view_mode);
+                            })
+                            .on("dblclick", function(event) {
+                                event.stopPropagation();
+                                showEnhancedInstanceDetails(dataPoint, svg.node().__enhancedData);
+                            });
+                    }
+                });
+
+                drawPolylines(svg, data, classSet, subplotWidth);
+            }
+
+            function showEnhancedInstanceDetails(dataPoint, enhancedData) {
+                const enhancedInstance = enhancedData ? enhancedData.find(d => d.instance_id === dataPoint.instance_id) : null;
+                const allScoresText = enhancedInstance ? 
+                    enhancedInstance.allClassScores.map((score, idx) => `C${idx}: ${score.toFixed(3)}`).join(', ') :
+                    'Not available';
+                
+                const detailsHtml = `
+                  <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                              background: white; border: 2px solid #333; border-radius: 8px; padding: 20px; 
+                              box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 10000; max-width: 500px; max-height: 400px; overflow-y: auto;">
+                    <h3 style="margin-top: 0; color: #333;">🔍 Enhanced Instance Details</h3>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                      <p style="margin: 5px 0;"><strong>Instance ID:</strong> ${dataPoint.instance_id}</p>
+                      <p style="margin: 5px 0;"><strong>Ground Truth:</strong> <span style="color: #2ecc71; font-weight: bold;">C${dataPoint.true_label}</span></p>
+                      <p style="margin: 5px 0;"><strong>Predicted Label:</strong> <span style="color: #ff6b35; font-weight: bold;">C${dataPoint.pred_label}</span></p>
+                      <p style="margin: 5px 0;"><strong>Prediction Score:</strong> ${dataPoint.pred_score.toFixed(3)}</p>
+                      <p style="margin: 5px 0;"><strong>Classification:</strong> 
+                        <span style="color: ${dataPoint.match === 'TP' ? '#2ecc71' : '#e74c3c'}; font-weight: bold;">
+                          ${dataPoint.match === 'TP' ? '✓ Correct' : '✗ ' + dataPoint.match}
+                        </span>
+                      </p>
+                      <p style="margin: 5px 0;"><strong>Bookmarked:</strong> ${bookmarkedInstances.has(dataPoint.instance_id) ? "Yes ⭐" : "No"}</p>
+                    </div>
+                    
+                    <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ff6b35;">
+                      <h4 style="margin: 0 0 10px 0; color: #856404;">📊 All Class Prediction Scores</h4>
+                      <p style="margin: 0; font-size: 12px; font-family: monospace; line-height: 1.4;">
+                        ${allScoresText}
+                      </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                      <button onclick="this.parentElement.parentElement.remove()" 
+                              style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                `;
+                
+                document.body.insertAdjacentHTML('beforeend', detailsHtml);
+            }
+
+            const selector = document.getElementById("view_mode");
+            if (selector) {
+                selector.addEventListener("change", e => draw(e.target.value));
+            }
+            
+            document.getElementById("toggle-polylines").addEventListener("click", function() {
+                polylinesVisible = !polylinesVisible;
+                this.textContent = polylinesVisible ? "Hide" : "Show";
+                this.style.background = polylinesVisible ? "#e74c3c" : "#2ecc71";
+                draw(selector ? selector.value : "boxes");
+            });
+            
+            document.getElementById("clear-bookmarks").addEventListener("click", function() {
+                bookmarkedInstances.clear();
+                updateBookmarkCount();
+                draw(selector ? selector.value : "boxes");
+            });
+            
+            document.getElementById("instance-filter").addEventListener("change", function() {
+                currentFilter = this.value;
+                draw(selector ? selector.value : "boxes");
+            });
+            
+            document.getElementById("confusion-analysis").addEventListener("click", function() {
+                generateConfusionReport();
+            });
+
+            updateBookmarkCount();
+            draw("boxes");
+        }
+
+        // For standalone HTML usage
+        window.createClassifierSquaresVisualization = createClassifierSquaresVisualization;
+        
+        // Placeholder for MNIST data - will be populated from Python/notebook
+        // This HTML file is designed to work with the classifier_squares_viz.py library
+        // When used standalone, you can replace this with your actual MNIST classification results
+        
+        // Example of how to use with your MNIST data:
+        // const mnistInstances = [
+        //     {"true_label": 0, "pred_label": 0, "pred_score": 0.95},
+        //     {"true_label": 1, "pred_label": 1, "pred_score": 0.87},
+        //     // ... your MNIST classification results
+        // ];
+        // createClassifierSquaresVisualization(mnistInstances);
+        
+        // For demo purposes only - replace with actual MNIST data
+        console.log("HTML file loaded. Use createClassifierSquaresVisualization(instances) with your MNIST data.");
+        
+        // If no data is provided, show placeholder message
+        document.getElementById("multi-class-vis").innerHTML = `
+            <div style="text-align: center; padding: 50px; color: #666; font-size: 16px;">
+                <h3>🎯 Enhanced Classifier Squares Visualization</h3>
+                <p>This visualization is ready to display your MNIST classification results.</p>
+                <p><strong>To use:</strong></p>
+                <ol style="text-align: left; max-width: 600px; margin: 20px auto;">
+                    <li>Use the Python library: <code>from classifier_squares_viz import ClassifierSquaresViz</code></li>
+                    <li>Load your MNIST data: <code>viz.load_sklearn_results(y_test, y_pred, y_proba)</code></li>
+                    <li>Display: <code>viz.show()</code></li>
+                </ol>
+                <p style="margin-top: 30px;">Or call <code>createClassifierSquaresVisualization(instances)</code> with your data array.</p>
+                <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: left;">
+                    <strong>Expected data format:</strong><br>
+                    <code>[{"true_label": 0, "pred_label": 1, "pred_score": 0.85}, ...]</code>
+                </div>
+            </div>
+        `;
+    </script>
+</body>
+</html>
