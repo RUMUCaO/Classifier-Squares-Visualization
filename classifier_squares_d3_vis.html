@@ -137,10 +137,21 @@
             let currentFilter = "all";
             let instanceIdCounter = 0;
             
+            // 正确区分TP、FP、FN
             const data = instances.map(d => {
+                let match = "";
+                if (d.true_label === d.pred_label) {
+                    match = "TP";
+                } else if (d.pred_label !== d.true_label) {
+                    // FP: 预测为本类但实际不是
+                    match = "FP";
+                    // 但对于可视化，class_focus 需要特殊处理，后面分组时要注意
+                }
+                // FN: 实际是本类但没预测为本类
+                // 这里FN的match会在后面分组时处理
                 return {
                     ...d,
-                    match: (d.true_label === d.pred_label) ? "TP" : "FN",
+                    match,
                     class_focus: d.true_label,
                     instance_id: instanceIdCounter++
                 };
@@ -294,11 +305,14 @@
                 polylineGroup.selectAll(".instance-polyline").remove();
                 polylineGroup.selectAll(".score-dot").remove();
                 
+                // polyline的x与每个class的y轴线（baselineX）重合
+                const baselineX = 10; // 与主draw中一致
+                const groupOffset = 60 + 35; // classOffset + yAxisOffset
                 const scorePoints = instance.allClassScores.map((score, idx) => {
-                    const classIdx = classSet[idx];
-                    const x = classIdx * subplotWidth + 50 + subplotWidth/2;
+                    // x轴：每个class的y轴线
+                    const x = idx * subplotWidth + groupOffset + baselineX;
                     const y = 400 - score * 300;
-                    return { x, y, score, classIdx, isTrue: classIdx === instance.true_label, isPred: classIdx === instance.pred_label };
+                    return { x, y, score, classIdx: classSet[idx], isTrue: classSet[idx] === instance.true_label, isPred: classSet[idx] === instance.pred_label };
                 });
                 
                 const line = d3.line()
@@ -344,13 +358,19 @@
             function draw(view_mode) {
                 d3.select("#multi-class-vis").html("");
 
-                const boxSize = 16, spacing = 2, rowsPerBin = 8;
+                const boxSize = 8, spacing = 2, rowsPerBin = 8;
                 const binHeight = 0.1;
                 const maxBin = 10;
                 const classSet = [...new Set(data.map(d => d.class_focus))].sort((a, b) => a - b);
-                const subplotWidth = 280;  
+                const subplotWidth = 150;  
                 const svgHeight = 800;     
-                const svgWidth = Math.max(subplotWidth * classSet.length + 150, 1500);
+                // Y轴整体左移（原+150，现+60）
+
+
+                // 让y轴单独在最左侧，所有class整体右移
+                const yAxisOffset = 45; // y轴距离左侧距离，整体再左移
+                const classOffset = 60; // class整体右移距离
+                const svgWidth = Math.max(subplotWidth * classSet.length + classOffset + yAxisOffset + 20, 1500);
 
                 const svg = d3.select("#multi-class-vis").append("svg")
                     .attr("width", svgWidth)
@@ -368,10 +388,11 @@
                 const mainContent = svg.append("g").attr("class", "main-content");
                 svg.append("g").attr("class", "polyline-group");
 
+                // group整体右移
                 const group = mainContent.selectAll("g")
                     .data(classSet)
                     .enter().append("g")
-                    .attr("transform", (d, i) => `translate(${i * subplotWidth + 50}, 50)`); 
+                    .attr("transform", (d, i) => `translate(${i * subplotWidth + classOffset + yAxisOffset}, 50)`); 
 
                 // Add Category Title with class color
                 group.append("text")
@@ -383,20 +404,21 @@
                     .style("font-size", "20px")  
                     .style("fill", d => colors[d % colors.length]);
 
-                // Add Y axis label (moved more to the left)
+                // Prediction Score在y轴左侧
                 mainContent.append("text")
                     .text("Prediction Score")
-                    .attr("x", 0)
+                    .attr("x", yAxisOffset - 25)
                     .attr("y", svgHeight/2)
                     .attr("text-anchor", "middle")
-                    .attr("transform", `rotate(-90, 15, ${svgHeight/2})`)
-                    .style("font-size", "16px")  
+                    .attr("transform", `rotate(-90, ${yAxisOffset - 25}, ${svgHeight/2})`)
+                    .style("font-size", "13px")  
                     .style("font-weight", "bold")
                     .style("fill", "#333");
 
                 group.each(function(cls, classIdx) {
                     const g = d3.select(this);
-                    const baselineX = 50;
+                    // Y轴整体左移（原50，现25）
+                    const baselineX = 25;
                     const filtered = data.filter(d => d.class_focus === cls);
 
                     const stats = {TP: 0, FP: 0, FN: 0};
@@ -417,7 +439,7 @@
                         .attr("x", subplotWidth/2)
                         .attr("y", svgHeight - 80)
                         .attr("text-anchor", "middle")
-                        .style("font-size", "14px")  
+                        .style("font-size", "10px")  
                         .style("font-weight", "bold")
                         .style("fill", "#555");
                         
@@ -426,19 +448,21 @@
                         .attr("x", subplotWidth/2)
                         .attr("y", svgHeight - 60)
                         .attr("text-anchor", "middle")
-                        .style("font-size", "14px")  
+                        .style("font-size", "10px")  
                         .style("font-weight", "bold")
                         .style("fill", "#555");
 
                     // Add Y-axis scale (only in the first subplot)
+
+                    // 只在最左侧画y轴
                     if (classIdx === 0) {
                         const yScale = d3.scaleLinear()
                             .domain([0, 1])
                             .range([svgHeight - 120, 70]); 
-                            
                         const yAxis = d3.axisLeft(yScale).ticks(10);
-                        g.append("g")
-                            .attr("transform", `translate(${baselineX}, 0)`)
+                        // y轴单独加到mainContent
+                        mainContent.append("g")
+                            .attr("transform", `translate(${yAxisOffset}, 0)`)
                             .call(yAxis)
                             .selectAll("text")
                             .style("font-size", "12px");
@@ -453,108 +477,68 @@
                         .attr("stroke", "#333")
                         .attr("stroke-width", 2);
 
-                    // Add prediction score label only for first class (moved much further left)
-                    if (classIdx === 0) {
-                        g.append("text")
-                            .text("Score")
-                            .attr("x", -65)  // Moved much further left to completely avoid Y-axis overlap
-                            .attr("y", 65)
-                            .attr("text-anchor", "middle")
-                            .style("font-size", "10px")
-                            .style("fill", "#666");
-                    }
-
-                    const byBin = Array.from({length: maxBin}, () => []);
-                    filtered.forEach(d => {
-                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                        const key = view_mode === "stacks" ? 0 : bin;
-                        byBin[key].push(d);
+                    // 先分组
+                    const byBin = Array.from({length: maxBin}, () => ({TP: [], FP: [], FN: []}));
+                    data.forEach(d => {
+                        // TP: 预测正确
+                        if (d.true_label === cls && d.pred_label === cls) {
+                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                            const key = view_mode === "stacks" ? 0 : bin;
+                            byBin[key].TP.push(d);
+                        }
+                        // FP: 预测为本类但实际不是
+                        else if (d.pred_label === cls && d.true_label !== cls) {
+                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                            const key = view_mode === "stacks" ? 0 : bin;
+                            byBin[key].FP.push(d);
+                        }
+                        // FN: 实际是本类但没预测为本类
+                        else if (d.true_label === cls && d.pred_label !== cls) {
+                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                            const key = view_mode === "stacks" ? 0 : bin;
+                            byBin[key].FN.push(d);
+                        }
                     });
 
+                    // 画TP、FP、FN
                     byBin.forEach((binData, binIdx) => {
-                        if (binData.length === 0) return;
-                        
                         const y_base = view_mode === "stacks" ? 
                             svgHeight - 170 : 
-                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10);  
-                            
-                        const counters = {TP: 0, FN: 0};
-                        
-                        binData.forEach(dataPoint => {
-                            if (!shouldShowInstance(dataPoint)) return; 
-                            
-                            const match = dataPoint.match;
-                            const count = counters[match]++;
-                            const row = Math.floor(count / rowsPerBin);
-                            const col = count % rowsPerBin;
-                            
-                            // Position boxes to grow from the baseline (no gap) - boxes start directly from the line
+                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10);
+
+                        // TP
+                        binData.TP.forEach((dataPoint, i) => {
+                            if (!shouldShowInstance({...dataPoint, match: "TP"})) return;
+                            const row = Math.floor(i / rowsPerBin);
+                            const col = i % rowsPerBin;
                             const x = baselineX + col * (boxSize + spacing);
                             const y = y_base - row * (boxSize + spacing);
-                            
-                            let fill = "none", stroke = "black", strokeWidth = 0;
-                            if (match === "TP") {
-                                // True positives: colored fill, no border
-                                fill = colors[dataPoint.true_label % colors.length];
-                                stroke = "none";
-                                strokeWidth = 0;
-                            }
-                            if (match === "FN") {
-                                // False negatives: white fill, colored border
-                                stroke = colors[dataPoint.pred_label % colors.length];
-                                fill = "white";
-                                strokeWidth = 1.5;
-                            }
-                            
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                     
                             g.append("rect")
-                                .datum(dataPoint) 
+                                .datum({...dataPoint, match: "TP"})
                                 .attr("x", x)
                                 .attr("y", y)
                                 .attr("width", boxSize)
                                 .attr("height", boxSize)
-                                .attr("fill", fill)
-                                .attr("stroke", isBookmarked ? "#ff6b6b" : stroke)
-                                .attr("stroke-width", isBookmarked ? 3 : strokeWidth)
+                                .attr("fill", colors[dataPoint.true_label % colors.length])
+                                .attr("stroke", isBookmarked ? "#ff6b6b" : "none")
+                                .attr("stroke-width", isBookmarked ? 3 : 0)
                                 .style("opacity", isBookmarked ? 1 : 0.8)
                                 .style("cursor", "pointer")
                                 .attr("class", `instance-${dataPoint.instance_id}`);
                         });
-                    });
 
-                    // Add FP data (right side, grow from prediction line)
-                    const fpData = data.filter(d => d.pred_label === cls && d.true_label !== cls);
-                    const fpByBin = Array.from({length: maxBin}, () => []);
-                    fpData.forEach(d => {
-                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                        const key = view_mode === "stacks" ? 0 : bin;
-                        fpByBin[key].push(d);
-                    });
-
-                    fpByBin.forEach((binData, binIdx) => {
-                        if (binData.length === 0) return;
-                        
-                        const y_base = view_mode === "stacks" ? 
-                            svgHeight - 170 : 
-                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10); 
-                            
-                        let fpCount = 0;
-                        binData.forEach(dataPoint => {
-                            if (!shouldShowInstance({...dataPoint, match: "FP"})) return;  
-                            
-                            const row = Math.floor(fpCount / rowsPerBin);
-                            const col = fpCount % rowsPerBin;
-                            
-                            // Position FP boxes to start after TP boxes, continuing from the baseline
-                            const x = baselineX + (col + rowsPerBin + 1) * (boxSize + spacing);
+                        // FP 紧跟TP
+                        const tpCount = binData.TP.length;
+                        binData.FP.forEach((dataPoint, i) => {
+                            if (!shouldShowInstance({...dataPoint, match: "FP"})) return;
+                            const row = Math.floor(i / rowsPerBin);
+                            const col = i % rowsPerBin;
+                            const x = baselineX + (tpCount + col) * (boxSize + spacing);
                             const y = y_base - row * (boxSize + spacing);
-                            
-                            const fpDataPoint = {...dataPoint, match: "FP"};
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            
                             g.append("rect")
-                                .datum(fpDataPoint)  
+                                .datum({...dataPoint, match: "FP"})
                                 .attr("x", x)
                                 .attr("y", y)
                                 .attr("width", boxSize)
@@ -566,43 +550,18 @@
                                 .style("opacity", isBookmarked ? 1 : 0.8)
                                 .style("cursor", "pointer")
                                 .attr("class", `instance-${dataPoint.instance_id}`);
-                                
-                            fpCount++;
                         });
-                    });
 
-                    // Add False Negative data (left side of prediction line, grow right to left)
-                    const fnData = data.filter(d => d.true_label === cls && d.pred_label !== cls);
-                    const fnByBin = Array.from({length: maxBin}, () => []);
-                    fnData.forEach(d => {
-                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                        const key = view_mode === "stacks" ? 0 : bin;
-                        fnByBin[key].push(d);
-                    });
-
-                    fnByBin.forEach((binData, binIdx) => {
-                        if (binData.length === 0) return;
-                        
-                        const y_base = view_mode === "stacks" ? 
-                            svgHeight - 170 : 
-                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10); 
-                            
-                        let fnCount = 0;
-                        binData.forEach(dataPoint => {
-                            if (!shouldShowInstance({...dataPoint, match: "FN"})) return;  
-                            
-                            const row = Math.floor(fnCount / rowsPerBin);
-                            const col = fnCount % rowsPerBin;
-                            
-                            // Position FN boxes to grow from left of baseline (right to left)
+                        // FN 左侧，右向左
+                        binData.FN.forEach((dataPoint, i) => {
+                            if (!shouldShowInstance({...dataPoint, match: "FN"})) return;
+                            const row = Math.floor(i / rowsPerBin);
+                            const col = i % rowsPerBin;
                             const x = baselineX - (col + 1) * (boxSize + spacing);
                             const y = y_base - row * (boxSize + spacing);
-                            
-                            const fnDataPoint = {...dataPoint, match: "FN"};
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            
                             g.append("rect")
-                                .datum(fnDataPoint)  
+                                .datum({...dataPoint, match: "FN"})
                                 .attr("x", x)
                                 .attr("y", y)
                                 .attr("width", boxSize)
@@ -613,8 +572,6 @@
                                 .style("opacity", isBookmarked ? 1 : 0.8)
                                 .style("cursor", "pointer")
                                 .attr("class", `instance-${dataPoint.instance_id}`);
-                                
-                            fnCount++;
                         });
                     });
                 });
