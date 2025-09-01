@@ -137,18 +137,18 @@
             let currentFilter = "all";
             let instanceIdCounter = 0;
             
-            // 正确区分TP、FP、FN
+            // Correctly distinguish TP, FP, FN
             const data = instances.map(d => {
                 let match = "";
                 if (d.true_label === d.pred_label) {
                     match = "TP";
                 } else if (d.pred_label !== d.true_label) {
-                    // FP: 预测为本类但实际不是
+                    // FP: Predicted as this class but actually not
                     match = "FP";
-                    // 但对于可视化，class_focus 需要特殊处理，后面分组时要注意
+                    // But for visualization, class_focus needs special handling, pay attention to grouping later
                 }
-                // FN: 实际是本类但没预测为本类
-                // 这里FN的match会在后面分组时处理
+                // FN: Actually this class but not predicted as this class
+                // The match for FN will be handled in grouping later
                 return {
                     ...d,
                     match,
@@ -305,11 +305,11 @@
                 polylineGroup.selectAll(".instance-polyline").remove();
                 polylineGroup.selectAll(".score-dot").remove();
                 
-                // polyline的x与每个class的y轴线（baselineX）重合
-                const baselineX = 25; // 与主draw中一致
+                // The x of polyline coincides with the y-axis line of each class (baselineX)
+                const baselineX = 25; // Consistent with the main draw
                 const groupOffset = 60 + 45; // classOffset + yAxisOffset
                 const scorePoints = instance.allClassScores.map((score, idx) => {
-                    // x轴：每个class的y轴线
+                    // x-axis: y-axis line of each class
                     const x = idx * subplotWidth + groupOffset + baselineX;
                     const y = 400 - score * 300;
                     return { x, y, score, classIdx: classSet[idx], isTrue: classSet[idx] === instance.true_label, isPred: classSet[idx] === instance.pred_label };
@@ -361,16 +361,16 @@
                 const boxSize = 8, spacing = 2, rowsPerBin = 10;
                 const binHeight = 0.1;
                 const maxBin = 10;
-                const MAX_BOX_PER_BIN = 20; // 统一控制每个bin最多显示多少个box
+                const MAX_BOX_PER_BIN = 20; //  Control the max number of boxes per bin
                 const classSet = [...new Set(data.map(d => d.class_focus))].sort((a, b) => a - b);
                 const subplotWidth = 150;  
                 const svgHeight = 800;     
-                // Y轴整体左移（原+150，现+60）
+                // Y-axis overall left shift (original +150, now +60)
 
 
-                // 让y轴单独在最左侧，所有class整体右移
-                const yAxisOffset = 45; // y轴距离左侧距离，整体再左移
-                const classOffset = 60; // class整体右移距离
+                // Move the y-axis to the far left, shift all classes to the right
+                const yAxisOffset = 45; // Distance from the left for the y-axis, shift overall left
+                const classOffset = 60; // Distance for the class to shift right
                 const svgWidth = Math.max(subplotWidth * classSet.length + classOffset + yAxisOffset + 20, 1500);
 
                 const svg = d3.select("#multi-class-vis").append("svg")
@@ -389,11 +389,24 @@
                 const mainContent = svg.append("g").attr("class", "main-content");
                 svg.append("g").attr("class", "polyline-group");
 
-                // group整体右移
+                // Shift group to the right, add clipPath for each class to prevent overflow
+
                 const group = mainContent.selectAll("g")
                     .data(classSet)
                     .enter().append("g")
-                    .attr("transform", (d, i) => `translate(${i * subplotWidth + classOffset + yAxisOffset}, 50)`); 
+                    .attr("transform", (d, i) => `translate(${i * subplotWidth + classOffset + yAxisOffset}, 50)`)
+                    .attr("clip-path", (d, i) => `url(#clip-class-${i})`);
+
+                // Add clipPath for each class subplot to prevent bar overflow to the next class
+                svg.append("defs").selectAll("clipPath")
+                    .data(classSet)
+                    .enter().append("clipPath")
+                    .attr("id", (d, i) => `clip-class-${i}`)
+                    .append("rect")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", subplotWidth)
+                    .attr("height", svgHeight - 120 - 70); // Only clip the main content area
 
                 // Add Category Title with class color
                 group.append("text")
@@ -405,7 +418,7 @@
                     .style("font-size", "20px")  
                     .style("fill", d => colors[d % colors.length]);
 
-                // Prediction Score在y轴左侧
+                // Prediction Score on the left side of the y-axis
                 mainContent.append("text")
                     .text("Prediction Score")
                     .attr("x", yAxisOffset - 25)
@@ -418,7 +431,7 @@
 
                 group.each(function(cls, classIdx) {
                     const g = d3.select(this);
-                    // Y轴整体左移（原50，现25）
+                    // Y-axis overall left shift (original 50, now 25)
                     const baselineX = 25;
                     const filtered = data.filter(d => d.class_focus === cls);
 
@@ -455,13 +468,13 @@
 
                     // Add Y-axis scale (only in the first subplot)
 
-                    // 只在最左侧画y轴
+                    // Only draw y-axis on the far left
                     if (classIdx === 0) {
                         const yScale = d3.scaleLinear()
                             .domain([0, 1])
                             .range([svgHeight - 120, 70]); 
                         const yAxis = d3.axisLeft(yScale).ticks(10);
-                        // y轴单独加到mainContent，并整体下移50像素
+                        // Add y-axis to mainContent and shift down by 50 pixels
                         mainContent.append("g")
                             .attr("transform", `translate(${yAxisOffset}, 50)`)
                             .call(yAxis)
@@ -478,77 +491,88 @@
                         .attr("stroke", "#333")
                         .attr("stroke-width", 2);
 
-                    // 先分组
+                    // First group
                     const byBin = Array.from({length: maxBin}, () => ({TP: [], FP: [], FN: []}));
                     data.forEach(d => {
-                        // TP: 预测正确
+                        // TP: Correct prediction
                         if (d.true_label === cls && d.pred_label === cls) {
                             const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            const key = view_mode === "stacks" ? 0 : bin;
-                            byBin[key].TP.push(d);
+                            byBin[bin].TP.push(d);
                         }
-                        // FP: 预测为本类但实际不是
+                        // FP: Predicted as this class but actually not
                         else if (d.pred_label === cls && d.true_label !== cls) {
                             const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            const key = view_mode === "stacks" ? 0 : bin;
-                            byBin[key].FP.push(d);
+                            byBin[bin].FP.push(d);
                         }
-                        // FN: 实际是本类但没预测为本类
+                        // FN: Actually this class but not predicted as this class
                         else if (d.true_label === cls && d.pred_label !== cls) {
                             const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            const key = view_mode === "stacks" ? 0 : bin;
-                            byBin[key].FN.push(d);
+                            byBin[bin].FN.push(d);
                         }
                     });
 
-                    // 画TP、FP、FN，溢出时显示提示
-                    byBin.forEach((binData, binIdx) => {
-                        // stack模式下每个bin的x/y基线
-                        let y_base, binX;
+                    // Draw TP, FP, FN, show hints when overflow
+                    // stack mode: high score bins on top, low score bins on bottom, and each bin has the same height
+                    let binCount = maxBin;
+                    let binHeight = boxSize;
+                    let binSpacing = spacing;
+                    let totalHeight = binCount * binHeight + (binCount - 1) * binSpacing;
+                    let firstBinY = 70; // Distance from the top margin, aligned with the y-axis
+                    for (let i = 0; i < byBin.length; i++) {
+                        // Reverse traversal, i=0 is the highest score bin (0.9-1.0), i=9 is the lowest score bin (0-0.1)
+                        const binData = byBin[byBin.length - 1 - i];
+                        let y_base, binY;
                         if (view_mode === "stacks") {
-                            // bin在x轴均匀分布，y_base为直方图底部
-                            binX = baselineX + binIdx * (boxSize + spacing) * (MAX_BOX_PER_BIN + 2);
-                            y_base = svgHeight - 170;
+                            binY =  (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
+                            y_base = binY;
                         } else {
-                            binX = baselineX;
-                            y_base = (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10);
+                            binY = null;
+                            y_base = (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
                         }
 
-                        // TP
+                        // TP horizontal bar
                         const tpFiltered = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"}));
+                        const tpCount = tpFiltered.length;
                         const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
                         const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
                         const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
-                        tpToShow.forEach((dataPoint, i) => {
-                            let x, y;
-                            if (view_mode === "stacks") {
-                                // 直方图样式：x为binX，y自下而上堆积
-                                x = binX;
-                                y = y_base - (i * (boxSize + spacing));
-                            } else {
+                        if (view_mode === "stacks") {
+                            if (tpCount > 0) {
+                                g.append("rect")
+                                    .attr("x", baselineX)
+                                    .attr("y", binY)
+                                    .attr("width", tpCount * boxSize + Math.max(0, tpCount - 1) * spacing)
+                                    .attr("height", binHeight)
+                                    .attr("fill", colors[binData.TP.length > 0 ? binData.TP[0].true_label % colors.length : 0])
+                                    .attr("stroke", "none")
+                                    .style("opacity", 0.8)
+                                    .attr("class", `tp-bar-rect bin-idx-${byBin.length-1-i}`);
+                            }
+                        } else {
+                            tpToShow.forEach((dataPoint, i) => {
                                 const row = Math.floor(i / rowsPerBin);
                                 const col = i % rowsPerBin;
-                                x = baselineX + col * (boxSize + spacing);
-                                y = y_base - row * (boxSize + spacing);
-                            }
-                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            g.append("rect")
-                                .datum({...dataPoint, match: "TP"})
-                                .attr("x", x)
-                                .attr("y", y)
-                                .attr("width", boxSize)
-                                .attr("height", boxSize)
-                                .attr("fill", colors[dataPoint.true_label % colors.length])
-                                .attr("stroke", isBookmarked ? "#ff6b6b" : "none")
-                                .attr("stroke-width", isBookmarked ? 3 : 0)
-                                .style("opacity", isBookmarked ? 1 : 0.8)
-                                .style("cursor", "pointer")
-                                .attr("class", `instance-${dataPoint.instance_id}`);
-                        });
+                                const x = baselineX + col * (boxSize + spacing);
+                                const y = y_base - row * (boxSize + spacing);
+                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                                g.append("rect")
+                                    .datum({...dataPoint, match: "TP"})
+                                    .attr("x", x)
+                                    .attr("y", y)
+                                    .attr("width", boxSize)
+                                    .attr("height", boxSize)
+                                    .attr("fill", colors[dataPoint.true_label % colors.length])
+                                    .attr("stroke", isBookmarked ? "#ff6b6b" : "none")
+                                    .attr("stroke-width", isBookmarked ? 3 : 0)
+                                    .style("opacity", isBookmarked ? 1 : 0.8)
+                                    .style("cursor", "pointer")
+                                    .attr("class", `instance-${dataPoint.instance_id}`);
+                            });
+                        }
                         if (tpOverflow > 0) {
                             let overflowX = baselineX + tpToShow.length * (boxSize + spacing) + 8;
                             if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
-                            const overflowY = y_base - boxSize - 8; // 右上角
+                            const overflowY = y_base - boxSize - 8; // Top right corner
                             g.append("text")
                                 .text(`>>> +${tpOverflow}`)
                                 .attr("x", overflowX)
@@ -567,40 +591,107 @@
                                 });
                         }
 
-                        // FP 紧跟TP
-                        const tpCount = tpFiltered.length > MAX_BOX_PER_BIN ? MAX_BOX_PER_BIN : tpFiltered.length;
+                        // FP follows TP
                         const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"}));
-                        // 按score从低到高排列，低分在左高分在右
+                        const fpCount = fpFiltered.length;
                         const fpSorted = fpFiltered.slice().sort((a, b) => a.score - b.score);
                         const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
                         const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
-                        fpToShow.forEach((dataPoint, i) => {
-                            let x, y;
-                            if (view_mode === "stacks") {
-                                // 直方图样式：x为binX+boxSize，y自下而上堆积
-                                x = binX + boxSize + spacing;
-                                y = y_base - (i * (boxSize + spacing));
-                            } else {
+                        if (view_mode === "stacks") {
+                            if (fpCount > 0) {
+                                g.append("rect")
+                                    .attr("x", baselineX)
+                                    .attr("y", binY + binHeight + binSpacing)
+                                    .attr("width", fpCount * boxSize + Math.max(0, fpCount - 1) * spacing)
+                                    .attr("height", binHeight)
+                                    .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
+                                    .attr("stroke", "black")
+                                    .attr("stroke-width", 1.5)
+                                    .style("fill-opacity", 0.6)
+                                    .style("opacity", 0.8)
+                                    .attr("class", `fp-bar-rect bin-idx-${byBin.length-1-i}`);
+                            }
+                        } else {
+                // Bind stack bar hover events (draw last)
+                if (view_mode === "stacks") {
+                    svg.selectAll('.tp-bar-rect').on("mouseover", function(event) {
+                        const className = d3.select(this).attr("class");
+                        const binIdx = parseInt(className.match(/bin-idx-(\d+)/)[1]);
+                        const count = d3.select(this).attr("width");
+                        const tooltipText = `TP bin ${binIdx}: ${Math.round(parseFloat(count)/boxSize)} instances\nScore range: ${(binIdx/10).toFixed(1)} - ${((binIdx+1)/10).toFixed(1)}`;
+                        showBarTooltip(event, tooltipText);
+                    }).on("mousemove", function(event) {
+                        moveBarTooltip(event);
+                    }).on("mouseout", function() {
+                        hideBarTooltip();
+                    });
+                    svg.selectAll('.fp-bar-rect').on("mouseover", function(event) {
+                        const className = d3.select(this).attr("class");
+                        const binIdx = parseInt(className.match(/bin-idx-(\d+)/)[1]);
+                        const count = d3.select(this).attr("width");
+                        const tooltipText = `FP bin ${binIdx}: ${Math.round(parseFloat(count)/boxSize)} instances\nScore range: ${(binIdx/10).toFixed(1)} - ${((binIdx+1)/10).toFixed(1)}`;
+                        showBarTooltip(event, tooltipText);
+                    }).on("mousemove", function(event) {
+                        moveBarTooltip(event);
+                    }).on("mouseout", function() {
+                        hideBarTooltip();
+                    });
+                }
+        // stack mode bar tooltip
+        function showBarTooltip(event, text) {
+            let tooltip = document.getElementById("bar-tooltip");
+            if (!tooltip) {
+                tooltip = document.createElement("div");
+                tooltip.id = "bar-tooltip";
+                tooltip.style.position = "fixed";
+                tooltip.style.zIndex = 9999;
+                tooltip.style.background = "#fffbe6";
+                tooltip.style.border = "2px solid #ff6b35";
+                tooltip.style.borderRadius = "6px";
+                tooltip.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+                tooltip.style.padding = "8px 14px";
+                tooltip.style.fontSize = "13px";
+                tooltip.style.pointerEvents = "none";
+                document.body.appendChild(tooltip);
+            }
+            tooltip.textContent = text;
+            tooltip.style.display = "block";
+            moveBarTooltip(event);
+        }
+
+        function moveBarTooltip(event) {
+            const tooltip = document.getElementById("bar-tooltip");
+            if (tooltip) {
+                tooltip.style.left = (event.clientX + 18) + "px";
+                tooltip.style.top = (event.clientY - 10) + "px";
+            }
+        }
+
+        function hideBarTooltip() {
+            const tooltip = document.getElementById("bar-tooltip");
+            if (tooltip) tooltip.style.display = "none";
+        }
+                            fpToShow.forEach((dataPoint, i) => {
                                 const row = Math.floor(i / rowsPerBin);
                                 const col = i % rowsPerBin;
-                                x = baselineX + (tpCount + col) * (boxSize + spacing);
-                                y = y_base - row * (boxSize + spacing);
-                            }
-                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            g.append("rect")
-                                .datum({...dataPoint, match: "FP"})
-                                .attr("x", x)
-                                .attr("y", y)
-                                .attr("width", boxSize)
-                                .attr("height", boxSize)
-                                .attr("fill", colors[dataPoint.true_label % colors.length])
-                                .attr("stroke", isBookmarked ? "#ff6b6b" : "black")
-                                .attr("stroke-width", isBookmarked ? 3 : 1.5)
-                                .style("fill-opacity", 0.6)
-                                .style("opacity", isBookmarked ? 1 : 0.8)
-                                .style("cursor", "pointer")
-                                .attr("class", `instance-${dataPoint.instance_id}`);
-                        });
+                                const x = baselineX + (tpToShow.length + col) * (boxSize + spacing);
+                                const y = y_base - row * (boxSize + spacing);
+                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                                g.append("rect")
+                                    .datum({...dataPoint, match: "FP"})
+                                    .attr("x", x)
+                                    .attr("y", y)
+                                    .attr("width", boxSize)
+                                    .attr("height", boxSize)
+                                    .attr("fill", colors[dataPoint.true_label % colors.length])
+                                    .attr("stroke", isBookmarked ? "#ff6b6b" : "black")
+                                    .attr("stroke-width", isBookmarked ? 3 : 1.5)
+                                    .style("fill-opacity", 0.6)
+                                    .style("opacity", isBookmarked ? 1 : 0.8)
+                                    .style("cursor", "pointer")
+                                    .attr("class", `instance-${dataPoint.instance_id}`);
+                            });
+                        }
                         if (fpOverflow > 0) {
                             let overflowX = baselineX + (tpCount + fpToShow.length) * (boxSize + spacing) + 8;
                             if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
@@ -623,7 +714,7 @@
                                 });
                         }
 
-                        // FN 左侧，右向左
+                        // FN on the left, grows right to left
                         const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
                         const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
                         const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
@@ -666,18 +757,18 @@
                                     hideOverflowTooltip();
                                 });
                         }
-        // 溢出浮窗
+        // Overflow tooltip
         function showOverflowTooltip(event, overflowData, type) {
             hideOverflowTooltip();
             if (!overflowData || overflowData.length === 0) return;
             const maxShow = 20;
             const html = `
                 <div style="max-width:320px; max-height:260px; overflow-y:auto; font-size:12px; background:#fffbe6; border:2px solid #ff6b35; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:10px;">
-                    <b>溢出${type}实例（仅显示前${maxShow}条）</b><br>
+                    <b>Overflow of ${type} instances (only showing the first ${maxShow}）</b><br>
                     <ul style='margin:6px 0 0 0; padding:0; list-style:none;'>
                         ${overflowData.slice(0,maxShow).map(d=>`<li style='margin-bottom:2px;'>ID:${d.instance_id} GT:C${d.true_label} Pred:C${d.pred_label} Score:${d.pred_score.toFixed(2)}</li>`).join('')}
                     </ul>
-                    ${overflowData.length > maxShow ? `<div style='color:#e67e22;'>...共${overflowData.length}条</div>` : ''}
+                    ${overflowData.length > maxShow ? `<div style='color:#e67e22;'>...${overflowData.length}bar</div>` : ''}
                 </div>
             `;
             let tooltip = document.getElementById("overflow-tooltip");
@@ -700,7 +791,7 @@
             const tooltip = document.getElementById("overflow-tooltip");
             if (tooltip) tooltip.style.display = "none";
         }
-                    });
+                    }
                 });
                 
                 const svgTooltip = svg.append("g")
