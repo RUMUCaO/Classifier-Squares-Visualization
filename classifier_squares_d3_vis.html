@@ -306,8 +306,8 @@
                 polylineGroup.selectAll(".score-dot").remove();
                 
                 // polyline的x与每个class的y轴线（baselineX）重合
-                const baselineX = 10; // 与主draw中一致
-                const groupOffset = 60 + 35; // classOffset + yAxisOffset
+                const baselineX = 25; // 与主draw中一致
+                const groupOffset = 60 + 45; // classOffset + yAxisOffset
                 const scorePoints = instance.allClassScores.map((score, idx) => {
                     // x轴：每个class的y轴线
                     const x = idx * subplotWidth + groupOffset + baselineX;
@@ -358,9 +358,10 @@
             function draw(view_mode) {
                 d3.select("#multi-class-vis").html("");
 
-                const boxSize = 8, spacing = 2, rowsPerBin = 8;
+                const boxSize = 8, spacing = 2, rowsPerBin = 10;
                 const binHeight = 0.1;
                 const maxBin = 10;
+                const MAX_BOX_PER_BIN = 20; // 统一控制每个bin最多显示多少个box
                 const classSet = [...new Set(data.map(d => d.class_focus))].sort((a, b) => a - b);
                 const subplotWidth = 150;  
                 const svgHeight = 800;     
@@ -460,9 +461,9 @@
                             .domain([0, 1])
                             .range([svgHeight - 120, 70]); 
                         const yAxis = d3.axisLeft(yScale).ticks(10);
-                        // y轴单独加到mainContent
+                        // y轴单独加到mainContent，并整体下移50像素
                         mainContent.append("g")
-                            .attr("transform", `translate(${yAxisOffset}, 0)`)
+                            .attr("transform", `translate(${yAxisOffset}, 50)`)
                             .call(yAxis)
                             .selectAll("text")
                             .style("font-size", "12px");
@@ -500,19 +501,36 @@
                         }
                     });
 
-                    // 画TP、FP、FN
+                    // 画TP、FP、FN，溢出时显示提示
                     byBin.forEach((binData, binIdx) => {
-                        const y_base = view_mode === "stacks" ? 
-                            svgHeight - 170 : 
-                            (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10);
+                        // stack模式下每个bin的x/y基线
+                        let y_base, binX;
+                        if (view_mode === "stacks") {
+                            // bin在x轴均匀分布，y_base为直方图底部
+                            binX = baselineX + binIdx * (boxSize + spacing) * (MAX_BOX_PER_BIN + 2);
+                            y_base = svgHeight - 170;
+                        } else {
+                            binX = baselineX;
+                            y_base = (svgHeight - 170) - (binIdx * (svgHeight - 250) / 10);
+                        }
 
                         // TP
-                        binData.TP.forEach((dataPoint, i) => {
-                            if (!shouldShowInstance({...dataPoint, match: "TP"})) return;
-                            const row = Math.floor(i / rowsPerBin);
-                            const col = i % rowsPerBin;
-                            const x = baselineX + col * (boxSize + spacing);
-                            const y = y_base - row * (boxSize + spacing);
+                        const tpFiltered = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"}));
+                        const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
+                        const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
+                        const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
+                        tpToShow.forEach((dataPoint, i) => {
+                            let x, y;
+                            if (view_mode === "stacks") {
+                                // 直方图样式：x为binX，y自下而上堆积
+                                x = binX;
+                                y = y_base - (i * (boxSize + spacing));
+                            } else {
+                                const row = Math.floor(i / rowsPerBin);
+                                const col = i % rowsPerBin;
+                                x = baselineX + col * (boxSize + spacing);
+                                y = y_base - row * (boxSize + spacing);
+                            }
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                             g.append("rect")
                                 .datum({...dataPoint, match: "TP"})
@@ -527,15 +545,47 @@
                                 .style("cursor", "pointer")
                                 .attr("class", `instance-${dataPoint.instance_id}`);
                         });
+                        if (tpOverflow > 0) {
+                            let overflowX = baselineX + tpToShow.length * (boxSize + spacing) + 8;
+                            if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
+                            const overflowY = y_base - boxSize - 8; // 右上角
+                            g.append("text")
+                                .text(`>>> +${tpOverflow}`)
+                                .attr("x", overflowX)
+                                .attr("y", overflowY)
+                                .attr("fill", colors[tpFiltered.length > 0 ? tpFiltered[0].true_label % colors.length : 0])
+                                .style("font-size", "13px")
+                                .style("font-weight", "bold")
+                                .style("cursor", "pointer")
+                                .style("background", "#fffbe6")
+                                .attr("class", "overflow-tip overflow-tip-tp")
+                                .on("mouseover", function(event) {
+                                    showOverflowTooltip(event, tpFiltered.slice(MAX_BOX_PER_BIN), "TP");
+                                })
+                                .on("mouseout", function() {
+                                    hideOverflowTooltip();
+                                });
+                        }
 
                         // FP 紧跟TP
-                        const tpCount = binData.TP.length;
-                        binData.FP.forEach((dataPoint, i) => {
-                            if (!shouldShowInstance({...dataPoint, match: "FP"})) return;
-                            const row = Math.floor(i / rowsPerBin);
-                            const col = i % rowsPerBin;
-                            const x = baselineX + (tpCount + col) * (boxSize + spacing);
-                            const y = y_base - row * (boxSize + spacing);
+                        const tpCount = tpFiltered.length > MAX_BOX_PER_BIN ? MAX_BOX_PER_BIN : tpFiltered.length;
+                        const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"}));
+                        // 按score从低到高排列，低分在左高分在右
+                        const fpSorted = fpFiltered.slice().sort((a, b) => a.score - b.score);
+                        const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
+                        const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
+                        fpToShow.forEach((dataPoint, i) => {
+                            let x, y;
+                            if (view_mode === "stacks") {
+                                // 直方图样式：x为binX+boxSize，y自下而上堆积
+                                x = binX + boxSize + spacing;
+                                y = y_base - (i * (boxSize + spacing));
+                            } else {
+                                const row = Math.floor(i / rowsPerBin);
+                                const col = i % rowsPerBin;
+                                x = baselineX + (tpCount + col) * (boxSize + spacing);
+                                y = y_base - row * (boxSize + spacing);
+                            }
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                             g.append("rect")
                                 .datum({...dataPoint, match: "FP"})
@@ -551,10 +601,33 @@
                                 .style("cursor", "pointer")
                                 .attr("class", `instance-${dataPoint.instance_id}`);
                         });
+                        if (fpOverflow > 0) {
+                            let overflowX = baselineX + (tpCount + fpToShow.length) * (boxSize + spacing) + 8;
+                            if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
+                            const overflowY = y_base - boxSize - 8;
+                            g.append("text")
+                                .text(`>>> +${fpOverflow}`)
+                                .attr("x", overflowX)
+                                .attr("y", overflowY)
+                                .attr("fill", colors[fpFiltered.length > 0 ? fpFiltered[0].true_label % colors.length : 0])
+                                .style("font-size", "13px")
+                                .style("font-weight", "bold")
+                                .style("cursor", "pointer")
+                                .style("background", "#fffbe6")
+                                .attr("class", "overflow-tip overflow-tip-fp")
+                                .on("mouseover", function(event) {
+                                    showOverflowTooltip(event, fpFiltered.slice(MAX_BOX_PER_BIN), "FP");
+                                })
+                                .on("mouseout", function() {
+                                    hideOverflowTooltip();
+                                });
+                        }
 
                         // FN 左侧，右向左
-                        binData.FN.forEach((dataPoint, i) => {
-                            if (!shouldShowInstance({...dataPoint, match: "FN"})) return;
+                        const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
+                        const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
+                        const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
+                        fnToShow.forEach((dataPoint, i) => {
                             const row = Math.floor(i / rowsPerBin);
                             const col = i % rowsPerBin;
                             const x = baselineX - (col + 1) * (boxSize + spacing);
@@ -573,6 +646,60 @@
                                 .style("cursor", "pointer")
                                 .attr("class", `instance-${dataPoint.instance_id}`);
                         });
+                        if (fnOverflow > 0) {
+                            const overflowX = baselineX - (MAX_BOX_PER_BIN + 1) * (boxSize + spacing) - 38;
+                            const overflowY = y_base - 2;
+                            g.append("text")
+                                .text(`<<< +${fnOverflow}`)
+                                .attr("x", overflowX)
+                                .attr("y", overflowY)
+                                .attr("fill", colors[fnFiltered.length > 0 ? fnFiltered[0].pred_label % colors.length : 0])
+                                .style("font-size", "13px")
+                                .style("font-weight", "bold")
+                                .style("cursor", "pointer")
+                                .style("background", "#fffbe6")
+                                .attr("class", "overflow-tip overflow-tip-fn")
+                                .on("mouseover", function(event) {
+                                    showOverflowTooltip(event, fnFiltered.slice(MAX_BOX_PER_BIN), "FN");
+                                })
+                                .on("mouseout", function() {
+                                    hideOverflowTooltip();
+                                });
+                        }
+        // 溢出浮窗
+        function showOverflowTooltip(event, overflowData, type) {
+            hideOverflowTooltip();
+            if (!overflowData || overflowData.length === 0) return;
+            const maxShow = 20;
+            const html = `
+                <div style="max-width:320px; max-height:260px; overflow-y:auto; font-size:12px; background:#fffbe6; border:2px solid #ff6b35; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:10px;">
+                    <b>溢出${type}实例（仅显示前${maxShow}条）</b><br>
+                    <ul style='margin:6px 0 0 0; padding:0; list-style:none;'>
+                        ${overflowData.slice(0,maxShow).map(d=>`<li style='margin-bottom:2px;'>ID:${d.instance_id} GT:C${d.true_label} Pred:C${d.pred_label} Score:${d.pred_score.toFixed(2)}</li>`).join('')}
+                    </ul>
+                    ${overflowData.length > maxShow ? `<div style='color:#e67e22;'>...共${overflowData.length}条</div>` : ''}
+                </div>
+            `;
+            let tooltip = document.getElementById("overflow-tooltip");
+            if (!tooltip) {
+                tooltip = document.createElement("div");
+                tooltip.id = "overflow-tooltip";
+                tooltip.style.position = "fixed";
+                tooltip.style.zIndex = 9999;
+                document.body.appendChild(tooltip);
+            }
+            tooltip.innerHTML = html;
+            tooltip.style.display = "block";
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
+            tooltip.style.left = (mouseX + 20) + "px";
+            tooltip.style.top = (mouseY - 10) + "px";
+        }
+
+        function hideOverflowTooltip() {
+            const tooltip = document.getElementById("overflow-tooltip");
+            if (tooltip) tooltip.style.display = "none";
+        }
                     });
                 });
                 
