@@ -762,7 +762,7 @@
                         if (fnOverflow > 0) {
                             // 最左边的FN box左侧，按实际显示数量计算
                             const leftmostBoxX = baselineX - (fnToShow.length) * (boxSize + spacing);
-                            const overflowX = leftmostBoxX - 10;
+                            const overflowX = leftmostBoxX - 5;
                             const overflowY = y_base - 2;
                             g.append("text")
                                 .text(`<<< +${fnOverflow}`)
