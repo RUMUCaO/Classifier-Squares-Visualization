@@ -555,9 +555,15 @@
                             }
                         } else {
                             tpToShow.forEach((dataPoint, i) => {
-                                const row = Math.floor(i / rowsPerBin);
-                                const col = i % rowsPerBin;
-                                const x = baselineX + col * (boxSize + spacing);
+                                let col = i % rowsPerBin;
+                                let row = Math.floor(i / rowsPerBin);
+                                let x = baselineX + col * (boxSize + spacing);
+                                // 限制 x 不超出 subplotWidth - boxSize - 10
+                                if (x > subplotWidth - boxSize - 10) {
+                                    col = 0;
+                                    row += 1;
+                                    x = baselineX;
+                                }
                                 const y = y_base - row * (boxSize + spacing);
                                 const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                                 g.append("rect")
@@ -677,9 +683,14 @@
             if (tooltip) tooltip.style.display = "none";
         }
                             fpToShow.forEach((dataPoint, i) => {
-                                const row = Math.floor(i / rowsPerBin);
-                                const col = i % rowsPerBin;
-                                const x = baselineX + (tpToShow.length + col) * (boxSize + spacing);
+                                let col = i % rowsPerBin;
+                                let row = Math.floor(i / rowsPerBin);
+                                let x = baselineX + (tpToShow.length + col) * (boxSize + spacing);
+                                if (x > subplotWidth - boxSize - 10) {
+                                    col = 0;
+                                    row += 1;
+                                    x = baselineX + tpToShow.length * (boxSize + spacing);
+                                }
                                 const y = y_base - row * (boxSize + spacing);
                                 const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                                 g.append("rect")
@@ -724,9 +735,15 @@
                         const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
                         const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
                         fnToShow.forEach((dataPoint, i) => {
-                            const row = Math.floor(i / rowsPerBin);
-                            const col = i % rowsPerBin;
-                            const x = baselineX - (col + 1) * (boxSize + spacing);
+                            let col = i % rowsPerBin;
+                            let row = Math.floor(i / rowsPerBin);
+                            let x = baselineX - (col + 1) * (boxSize + spacing);
+                            // 限制 x 不小于 0
+                            if (x < 0) {
+                                col = 0;
+                                row += 1;
+                                x = baselineX;
+                            }
                             const y = y_base - row * (boxSize + spacing);
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                             g.append("rect")
