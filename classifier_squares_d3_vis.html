@@ -277,23 +277,13 @@
                 
                 svg.select(".polyline-group").selectAll("*").remove();
                 
-                const enhancedData = data.map(d => {
-                    const allClassScores = classSet.map(cls => {
-                        if (cls === d.pred_label) {
-                            return d.pred_score;
-                        } else if (cls === d.true_label && d.true_label !== d.pred_label) {
-                            return Math.max(0.1, d.pred_score * 0.3 + Math.random() * 0.2);
-                        } else {
-                            return Math.random() * 0.3;
-                        }
-                    });
-                    
-                    return {
+                // Get the same yScale as the main image
+                const svgHeight = +svg.attr("height") || 800;
+                const yScale = d3.scaleLinear().domain([0, 1]).range([svgHeight - 120, 70]);
+                const enhancedData = data.map(d => ({
                         ...d,
-                        allClassScores: allClassScores
-                    };
-                });
-                
+                        allClassScores: d.class_scores
+                    }));
                 svg.node().__enhancedData = enhancedData;
             }
             
@@ -305,21 +295,21 @@
                 polylineGroup.selectAll(".instance-polyline").remove();
                 polylineGroup.selectAll(".score-dot").remove();
                 
-                // The x of polyline coincides with the y-axis line of each class (baselineX)
+                // 统一 yScale 映射
+                const svgHeight = +svg.attr("height") || 800;
+                const yScale = d3.scaleLinear().domain([0, 1]).range([svgHeight - 120, 70]);
                 const baselineX = 25; // Consistent with the main draw
                 const groupOffset = 60 + 45; // classOffset + yAxisOffset
                 const scorePoints = instance.allClassScores.map((score, idx) => {
                     // x-axis: y-axis line of each class
                     const x = idx * subplotWidth + groupOffset + baselineX;
-                    const y = 400 - score * 300;
+                    const y = yScale(score);
                     return { x, y, score, classIdx: classSet[idx], isTrue: classSet[idx] === instance.true_label, isPred: classSet[idx] === instance.pred_label };
                 });
-                
                 const line = d3.line()
                     .x(d => d.x)
                     .y(d => d.y)
                     .curve(d3.curveLinear);
-                
                 polylineGroup.append("path")
                     .datum(scorePoints)
                     .attr("class", "instance-polyline")
@@ -329,7 +319,6 @@
                     .attr("fill", "none")
                     .attr("opacity", 0.8)
                     .style("pointer-events", "none");
-                
                 polylineGroup.selectAll(".score-dot")
                     .data(scorePoints)
                     .enter()
