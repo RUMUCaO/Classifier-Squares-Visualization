@@ -761,8 +761,9 @@
                         });
                         if (fnOverflow > 0) {
                             // 让overflow提示文本在最后一个FN box左侧附近
-                            const lastBoxX = baselineX - (fnToShow.length) * (boxSize + spacing);
-                            const overflowX = Math.max(lastBoxX - 20, 5);
+                            // 最左边的FN box左侧
+                            const leftmostBoxX = baselineX - (rowsPerBin) * (boxSize + spacing);
+                            const overflowX = Math.max(leftmostBoxX - 20, 5);
                             const overflowY = y_base - 2;
                             g.append("text")
                                 .text(`<<< +${fnOverflow}`)
