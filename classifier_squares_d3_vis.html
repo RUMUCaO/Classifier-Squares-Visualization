@@ -362,7 +362,9 @@
                                                 // 自动调整 boxSize，rowsPerBin，subplotWidth
                                                 const boxSize = Math.max(2, 8 - Math.floor(maxInstances / 100)); // 最小2，最大8
                                                 const spacing = 2;
-                                                const rowsPerBin = Math.max(10, Math.ceil(maxInstances / 10)); // 每行最多 box，数据多时自动加行
+                                                // 计算每个 bin 的最大 box 数，rowsPerBin 动态设置为最大重叠数
+                                                const binMaxCounts = byBinPreview.map(binData => binData.TP.length + binData.FP.length + binData.FN.length);
+                                                const rowsPerBin = Math.max(10, ...binMaxCounts);
                                                 const subplotWidth = Math.max(150, boxSize * rowsPerBin + spacing * (rowsPerBin - 1) + 60); // 自动加宽子图
                 const binHeight = 0.1;
                 const maxBin = 10;
