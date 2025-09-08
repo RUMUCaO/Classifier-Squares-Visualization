@@ -348,7 +348,19 @@
             function draw(view_mode) {
                 d3.select("#multi-class-vis").html("");
 
-                const boxSize = 8, spacing = 2, rowsPerBin = 10;
+                                // 动态调整 boxSize，数据量大时自动缩小
+                                const byBinPreview = Array.from({length: 10}, () => ({TP: [], FP: [], FN: []}));
+                                data.forEach(d => {
+                                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                                        if (d.match === "TP") byBinPreview[bin].TP.push(d);
+                                        else if (d.match === "FP") byBinPreview[bin].FP.push(d);
+                                        else if (d.match === "FN") byBinPreview[bin].FN.push(d);
+                                });
+                                const maxInstances = Math.max(
+                                    ...byBinPreview.map(binData => binData.TP.length + binData.FP.length + binData.FN.length)
+                                );
+                                const boxSize = Math.max(2, 8 - Math.floor(maxInstances / 100)); // 最小2，最大8
+                                const spacing = 2, rowsPerBin = 10;
                 const binHeight = 0.1;
                 const maxBin = 10;
                 const MAX_BOX_PER_BIN = 20; //  Control the max number of boxes per bin
