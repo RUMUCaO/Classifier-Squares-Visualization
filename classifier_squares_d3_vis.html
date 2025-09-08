@@ -368,7 +368,7 @@
                                                 // rowsPerBin 设置最大上限，防止太宽
                                                 const rowsPerBin = Math.min(Math.max(10, globalMaxBoxes), 50); // 最多50列
                                                 // subplotWidth 统一设置，防止某个 class 区域过宽
-                                                const subplotWidth = Math.min(Math.max(150, boxSize * rowsPerBin + spacing * (rowsPerBin - 1) + 60), 300); // 最宽300
+                                                const subplotWidth = Math.min(Math.max(150, boxSize * rowsPerBin + spacing * (rowsPerBin - 1) + 60), 800); // 最宽800
                 const binHeight = 0.1;
                 const maxBin = 10;
                 const MAX_BOX_PER_BIN = 20; //  Control the max number of boxes per bin
@@ -419,9 +419,9 @@
                 // Add Category Title with class color
                 group.append("text")
                     .text(d => `Class ${d}`)
-                    .attr("x", baselineX)
+                    .attr("x", subplotWidth/2)
                     .attr("y", -15)
-                    .attr("text-anchor", "start")
+                    .attr("text-anchor", "middle")
                     .style("font-weight", "bold")
                     .style("font-size", "20px")  
                     .style("fill", d => colors[d % colors.length]);
