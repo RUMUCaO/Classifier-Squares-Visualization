@@ -421,6 +421,9 @@
 
                 group.each(function(cls, classIdx) {
                     const g = d3.select(this);
+                    const yScale = d3.scaleLinear()
+                        .domain([0, 1])
+                        .range([svgHeight - 120, 70]);
                     // Y-axis overall left shift (original 50, now 25)
                     const baselineX = 25;
                     const filtered = data.filter(d => d.class_focus === cls);
@@ -543,7 +546,7 @@
                                 const row = Math.floor(i / rowsPerBin);
                                 const col = i % rowsPerBin;
                                 const x = baselineX + col * (boxSize + spacing);
-                                const y = y_base - row * (boxSize + spacing);
+                                const y = yScale(dataPoint.pred_score) - row * (boxSize + spacing);
                                 const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                                 g.append("rect")
                                     .datum({...dataPoint, match: "TP"})
@@ -712,7 +715,7 @@
                             const row = Math.floor(i / rowsPerBin);
                             const col = i % rowsPerBin;
                             const x = baselineX - (col + 1) * (boxSize + spacing);
-                            const y = y_base - row * (boxSize + spacing);
+                            const y = yScale(dataPoint.pred_score) - row * (boxSize + spacing);
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                             g.append("rect")
                                 .datum({...dataPoint, match: "FN"})
