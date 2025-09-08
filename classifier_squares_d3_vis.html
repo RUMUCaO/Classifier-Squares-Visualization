@@ -561,110 +561,61 @@
                         }
                         if (tpOverflow > 0) {
                             let overflowX = baselineX + tpToShow.length * (boxSize + spacing) + 8;
-                            if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
-                            const overflowY = y_base - boxSize - 8; // Top right corner
-                            g.append("text")
-                                .text(`>>> +${tpOverflow}`)
-                                .attr("x", overflowX)
-                                .attr("y", overflowY)
-                                .attr("fill", colors[tpFiltered.length > 0 ? tpFiltered[0].true_label % colors.length : 0])
-                                .style("font-size", "13px")
-                                .style("font-weight", "bold")
-                                .style("cursor", "pointer")
-                                .style("background", "#fffbe6")
-                                .attr("class", "overflow-tip overflow-tip-tp")
-                                .on("mouseover", function(event) {
-                                    showOverflowTooltip(event, tpFiltered.slice(MAX_BOX_PER_BIN), "TP");
-                                })
-                                .on("mouseout", function() {
-                                    hideOverflowTooltip();
-                                });
-                        }
-
-                        // FP follows TP
-                        const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"}));
-                        const fpCount = fpFiltered.length;
-                        const fpSorted = fpFiltered.slice().sort((a, b) => a.score - b.score);
-                        const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
-                        const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
-                        if (view_mode === "stacks") {
-                            if (fpCount > 0) {
+                            // TP horizontal bar
+                            const tpFiltered = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"}));
+                            const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
+                            const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
+                            const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
+                            tpToShow.forEach((dataPoint, i) => {
+                                const row = Math.floor(i / rowsPerBin);
+                                const col = i % rowsPerBin;
+                                const x = baselineX + col * (boxSize + spacing);
+                                const y = y_base - row * (boxSize + spacing);
+                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                                 g.append("rect")
-                                    .attr("x", baselineX)
-                                    .attr("y", binY + binHeight + binSpacing)
-                                    .attr("width", fpCount * boxSize + Math.max(0, fpCount - 1) * spacing)
-                                    .attr("height", binHeight)
-                                    .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
-                                    .attr("stroke", "black")
-                                    .attr("stroke-width", 1.5)
-                                    .style("fill-opacity", 0.6)
-                                    .style("opacity", 0.8)
-                                    .attr("class", `fp-bar-rect bin-idx-${byBin.length-1-i}`);
+                                    .datum({...dataPoint, match: "TP"})
+                                    .attr("x", x)
+                                    .attr("y", y)
+                                    .attr("width", boxSize)
+                                    .attr("height", boxSize)
+                                    .attr("fill", colors[dataPoint.true_label % colors.length])
+                                    .attr("stroke", isBookmarked ? "#ff6b6b" : "none")
+                                    .attr("stroke-width", isBookmarked ? 3 : 0)
+                                    .style("opacity", isBookmarked ? 1 : 0.8)
+                                    .style("cursor", "pointer")
+                                    .attr("class", `instance-${dataPoint.instance_id}`);
+                            });
+                            if (tpOverflow > 0) {
+                                let overflowX = baselineX + tpToShow.length * (boxSize + spacing) + 8;
+                                if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
+                                const overflowY = y_base - boxSize - 8; // Top right corner
+                                g.append("text")
+                                    .text(`>>> +${tpOverflow}`)
+                                    .attr("x", overflowX)
+                                    .attr("y", overflowY)
+                                    .attr("fill", colors[tpFiltered.length > 0 ? tpFiltered[0].true_label % colors.length : 0])
+                                    .style("font-size", "13px")
+                                    .style("font-weight", "bold")
+                                    .style("cursor", "pointer")
+                                    .style("background", "#fffbe6")
+                                    .attr("class", "overflow-tip overflow-tip-tp")
+                                    .on("mouseover", function(event) {
+                                        showOverflowTooltip(event, tpFiltered.slice(MAX_BOX_PER_BIN), "TP");
+                                    })
+                                    .on("mouseout", function() {
+                                        hideOverflowTooltip();
+                                    });
                             }
-                        } else {
-                // Bind stack bar hover events (draw last)
-                if (view_mode === "stacks") {
-                    svg.selectAll('.tp-bar-rect').on("mouseover", function(event) {
-                        const className = d3.select(this).attr("class");
-                        const binIdx = parseInt(className.match(/bin-idx-(\d+)/)[1]);
-                        const count = d3.select(this).attr("width");
-                        const tooltipText = `TP bin ${binIdx}: ${Math.round(parseFloat(count)/boxSize)} instances\nScore range: ${(binIdx/10).toFixed(1)} - ${((binIdx+1)/10).toFixed(1)}`;
-                        showBarTooltip(event, tooltipText);
-                    }).on("mousemove", function(event) {
-                        moveBarTooltip(event);
-                    }).on("mouseout", function() {
-                        hideBarTooltip();
-                    });
-                    svg.selectAll('.fp-bar-rect').on("mouseover", function(event) {
-                        const className = d3.select(this).attr("class");
-                        const binIdx = parseInt(className.match(/bin-idx-(\d+)/)[1]);
-                        const count = d3.select(this).attr("width");
-                        const tooltipText = `FP bin ${binIdx}: ${Math.round(parseFloat(count)/boxSize)} instances\nScore range: ${(binIdx/10).toFixed(1)} - ${((binIdx+1)/10).toFixed(1)}`;
-                        showBarTooltip(event, tooltipText);
-                    }).on("mousemove", function(event) {
-                        moveBarTooltip(event);
-                    }).on("mouseout", function() {
-                        hideBarTooltip();
-                    });
-                }
-        // stack mode bar tooltip
-        function showBarTooltip(event, text) {
-            let tooltip = document.getElementById("bar-tooltip");
-            if (!tooltip) {
-                tooltip = document.createElement("div");
-                tooltip.id = "bar-tooltip";
-                tooltip.style.position = "fixed";
-                tooltip.style.zIndex = 9999;
-                tooltip.style.background = "#fffbe6";
-                tooltip.style.border = "2px solid #ff6b35";
-                tooltip.style.borderRadius = "6px";
-                tooltip.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-                tooltip.style.padding = "8px 14px";
-                tooltip.style.fontSize = "13px";
-                tooltip.style.pointerEvents = "none";
-                document.body.appendChild(tooltip);
-            }
-            tooltip.textContent = text;
-            tooltip.style.display = "block";
-            moveBarTooltip(event);
-        }
 
-        function moveBarTooltip(event) {
-            const tooltip = document.getElementById("bar-tooltip");
-            if (tooltip) {
-                tooltip.style.left = (event.clientX + 18) + "px";
-                tooltip.style.top = (event.clientY - 10) + "px";
-            }
-        }
-
-        function hideBarTooltip() {
-            const tooltip = document.getElementById("bar-tooltip");
-            if (tooltip) tooltip.style.display = "none";
-        }
+                            // FP independent from TP
+                            const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"}));
+                            const fpSorted = fpFiltered.slice().sort((a, b) => a.score - b.score);
+                            const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
+                            const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
                             fpToShow.forEach((dataPoint, i) => {
                                 const row = Math.floor(i / rowsPerBin);
                                 const col = i % rowsPerBin;
-                                const x = baselineX + (tpToShow.length + col) * (boxSize + spacing);
+                                const x = baselineX + MAX_BOX_PER_BIN * (boxSize + spacing) + col * (boxSize + spacing);
                                 const y = y_base - row * (boxSize + spacing);
                                 const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
                                 g.append("rect")
@@ -681,54 +632,71 @@
                                     .style("cursor", "pointer")
                                     .attr("class", `instance-${dataPoint.instance_id}`);
                             });
-                        }
-                        if (fpOverflow > 0) {
-                            let overflowX = baselineX + (tpCount + fpToShow.length) * (boxSize + spacing) + 8;
-                            if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
-                            const overflowY = y_base - boxSize - 8;
-                            g.append("text")
-                                .text(`>>> +${fpOverflow}`)
-                                .attr("x", overflowX)
-                                .attr("y", overflowY)
-                                .attr("fill", colors[fpFiltered.length > 0 ? fpFiltered[0].true_label % colors.length : 0])
-                                .style("font-size", "13px")
-                                .style("font-weight", "bold")
-                                .style("cursor", "pointer")
-                                .style("background", "#fffbe6")
-                                .attr("class", "overflow-tip overflow-tip-fp")
-                                .on("mouseover", function(event) {
-                                    showOverflowTooltip(event, fpFiltered.slice(MAX_BOX_PER_BIN), "FP");
-                                })
-                                .on("mouseout", function() {
-                                    hideOverflowTooltip();
-                                });
-                        }
+                            if (fpOverflow > 0) {
+                                let overflowX = baselineX + MAX_BOX_PER_BIN * (boxSize + spacing) + fpToShow.length * (boxSize + spacing) + 8;
+                                if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
+                                const overflowY = y_base - boxSize - 8;
+                                g.append("text")
+                                    .text(`>>> +${fpOverflow}`)
+                                    .attr("x", overflowX)
+                                    .attr("y", overflowY)
+                                    .attr("fill", colors[fpFiltered.length > 0 ? fpFiltered[0].true_label % colors.length : 0])
+                                    .style("font-size", "13px")
+                                    .style("font-weight", "bold")
+                                    .style("cursor", "pointer")
+                                    .style("background", "#fffbe6")
+                                    .attr("class", "overflow-tip overflow-tip-fp")
+                                    .on("mouseover", function(event) {
+                                        showOverflowTooltip(event, fpFiltered.slice(MAX_BOX_PER_BIN), "FP");
+                                    })
+                                    .on("mouseout", function() {
+                                        hideOverflowTooltip();
+                                    });
+                            }
 
-                        // FN on the left, grows right to left
-                        const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
-                        const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
-                        const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
-                        fnToShow.forEach((dataPoint, i) => {
-                            const row = Math.floor(i / rowsPerBin);
-                            const col = i % rowsPerBin;
-                            const x = baselineX - (col + 1) * (boxSize + spacing);
-                            const y = y_base - row * (boxSize + spacing);
-                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            g.append("rect")
-                                .datum({...dataPoint, match: "FN"})
-                                .attr("x", x)
-                                .attr("y", y)
-                                .attr("width", boxSize)
-                                .attr("height", boxSize)
-                                .attr("fill", "white")
-                                .attr("stroke", isBookmarked ? "#ff6b6b" : colors[dataPoint.pred_label % colors.length])
-                                .attr("stroke-width", isBookmarked ? 3 : 1.5)
-                                .style("opacity", isBookmarked ? 1 : 0.8)
-                                .style("cursor", "pointer")
-                                .attr("class", `instance-${dataPoint.instance_id}`);
-                        });
-                        if (fnOverflow > 0) {
-                            const overflowX = baselineX - (MAX_BOX_PER_BIN + 1) * (boxSize + spacing) - 38;
+                            // FN independent from TP
+                            const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
+                            const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
+                            const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
+                            fnToShow.forEach((dataPoint, i) => {
+                                const row = Math.floor(i / rowsPerBin);
+                                const col = i % rowsPerBin;
+                                const x = baselineX - (col + 1) * (boxSize + spacing);
+                                const y = y_base - row * (boxSize + spacing);
+                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                                g.append("rect")
+                                    .datum({...dataPoint, match: "FN"})
+                                    .attr("x", x)
+                                    .attr("y", y)
+                                    .attr("width", boxSize)
+                                    .attr("height", boxSize)
+                                    .attr("fill", "white")
+                                    .attr("stroke", isBookmarked ? "#ff6b6b" : colors[dataPoint.pred_label % colors.length])
+                                    .attr("stroke-width", isBookmarked ? 3 : 1.5)
+                                    .style("opacity", isBookmarked ? 1 : 0.8)
+                                    .style("cursor", "pointer")
+                                    .attr("class", `instance-${dataPoint.instance_id}`);
+                            });
+                            if (fnOverflow > 0) {
+                                const overflowX = baselineX - (MAX_BOX_PER_BIN + 1) * (boxSize + spacing) - 38;
+                                const overflowY = y_base - 2;
+                                g.append("text")
+                                    .text(`<<< +${fnOverflow}`)
+                                    .attr("x", overflowX)
+                                    .attr("y", overflowY)
+                                    .attr("fill", colors[fnFiltered.length > 0 ? fnFiltered[0].pred_label % colors.length : 0])
+                                    .style("font-size", "13px")
+                                    .style("font-weight", "bold")
+                                    .style("cursor", "pointer")
+                                    .style("background", "#fffbe6")
+                                    .attr("class", "overflow-tip overflow-tip-fn")
+                                    .on("mouseover", function(event) {
+                                        showOverflowTooltip(event, fnFiltered.slice(MAX_BOX_PER_BIN), "FN");
+                                    })
+                                    .on("mouseout", function() {
+                                        hideOverflowTooltip();
+                                    });
+                            }
                             const overflowY = y_base - 2;
                             g.append("text")
                                 .text(`<<< +${fnOverflow}`)
