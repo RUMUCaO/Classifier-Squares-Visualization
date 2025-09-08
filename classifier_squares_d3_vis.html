@@ -153,7 +153,8 @@
                     ...d,
                     match,
                     class_focus: d.true_label,
-                    instance_id: instanceIdCounter++
+                    instance_id: instanceIdCounter++,
+                    class_scores: Array.isArray(d.class_scores) ? d.class_scores : null
                 };
             });
 
