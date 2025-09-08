@@ -760,7 +760,9 @@
                             }
                         });
                         if (fnOverflow > 0) {
-                            const overflowX = baselineX - (MAX_BOX_PER_BIN + 1) * (boxSize + spacing) - 38;
+                            // 让overflow提示文本在最后一个FN box左侧附近
+                            const lastBoxX = baselineX - (fnToShow.length) * (boxSize + spacing);
+                            const overflowX = Math.max(lastBoxX - 20, 5);
                             const overflowY = y_base - 2;
                             g.append("text")
                                 .text(`<<< +${fnOverflow}`)
