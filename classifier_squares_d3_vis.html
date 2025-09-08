@@ -304,7 +304,7 @@
                 const scorePoints = instance.allClassScores.map((score, idx) => {
                     // x-axis: y-axis line of each class
                     const x = idx * subplotWidth + groupOffset + baselineX;
-                    const y = yScale(score);
+                    const y = yScale(score) + 50;
                     return { x, y, score, classIdx: classSet[idx], isTrue: classSet[idx] === instance.true_label, isPred: classSet[idx] === instance.pred_label };
                 });
                 const line = d3.line()
