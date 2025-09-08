@@ -385,7 +385,6 @@
                     .data(classSet)
                     .enter().append("g")
                     .attr("transform", (d, i) => `translate(${i * subplotWidth + classOffset + yAxisOffset}, 50)`)
-                    .attr("clip-path", (d, i) => `url(#clip-class-${i})`);
 
                 // Add clipPath for each class subplot to prevent bar overflow to the next class
                 svg.append("defs").selectAll("clipPath")
