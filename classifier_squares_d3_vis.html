@@ -805,7 +805,9 @@
             tooltip.style.display = "block";
             const mouseX = event.clientX;
             const mouseY = event.clientY;
-            tooltip.style.left = (mouseX + 20) + "px";
+            // FN overflow提示距离鼠标更近
+            let leftOffset = type === "FN" ? 5 : 20;
+            tooltip.style.left = (mouseX + leftOffset) + "px";
             tooltip.style.top = (mouseY - 10) + "px";
         }
 
