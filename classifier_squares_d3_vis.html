@@ -416,12 +416,12 @@
                     .attr("width", subplotWidth)
                     .attr("height", svgHeight - 120 - 70); // Only clip the main content area
 
-                // Add Category Title with class color
+                // Add Category Title with class color, perfectly aligned with axis line
                 group.append("text")
                     .text(d => `Class ${d}`)
                     .attr("x", baselineX)
-                    .attr("y", -15)
-                    .attr("text-anchor", "start")
+                    .attr("y", 65) // Align with axis line top (y1 of predScoreLine)
+                    .attr("text-anchor", "middle")
                     .style("font-weight", "bold")
                     .style("font-size", "20px")  
                     .style("fill", d => colors[d % colors.length]);
