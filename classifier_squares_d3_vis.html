@@ -545,63 +545,74 @@
                         const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
                         const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
                         if (view_mode === "stacks") {
-                            binY =  (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
-                            y_base = binY;
-
-                            // Calculate counts for this bin
+                            // 计算每个 bin 的实例数
                             const tpCount = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length;
                             const fpCount = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length;
                             const fnCount = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"})).length;
                             const totalCount = tpCount + fpCount + fnCount;
 
-                            // Find max bin total for normalization
+                            // 计算最大 bin 实例数
                             const binTotals = byBin.map(b => b.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length + b.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length + b.FN.filter(d => shouldShowInstance({...d, match: "FN"})).length);
                             const maxBinTotal = Math.max(...binTotals, 1);
-                            const barMaxWidth = subplotWidth - baselineX - 10;
-                            const barWidth = totalCount > 0 ? (totalCount / maxBinTotal) * barMaxWidth : 0;
 
-                            // Proportional widths for each segment
-                            const tpWidth = totalCount > 0 ? (tpCount / totalCount) * barWidth : 0;
-                            const fpWidth = totalCount > 0 ? (fpCount / totalCount) * barWidth : 0;
-                            const fnWidth = totalCount > 0 ? (fnCount / totalCount) * barWidth : 0;
-                            let xStart = baselineX;
+                            // 设定最大条高度（比如 40 像素）
+                            const maxBarHeight = 40;
+                            // 每个 bin 的 stack 高度
+                            const stackHeight = totalCount > 0 ? (totalCount / maxBinTotal) * maxBarHeight : 0;
+                            // stack 的 y 坐标，按等距分布
+                            const binY = 70 + i * ((svgHeight - 120 - 70) / maxBin); // 70 是顶部边距
 
-                            // Draw TP segment
-                            g.append("rect")
-                                .attr("x", xStart)
-                                .attr("y", binY)
-                                .attr("width", tpWidth)
-                                .attr("height", binHeight)
-                                .attr("fill", colors[binData.TP.length > 0 ? binData.TP[0].true_label % colors.length : 0])
-                                .attr("stroke", "none")
-                                .style("opacity", 0.8)
-                                .attr("class", `tp-bar-rect bin-idx-${byBin.length-1-i}`);
-                            xStart += tpWidth;
-                            // Draw FP segment
-                            g.append("rect")
-                                .attr("x", xStart)
-                                .attr("y", binY)
-                                .attr("width", fpWidth)
-                                .attr("height", binHeight)
-                                .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
-                                .attr("stroke", "black")
-                                .attr("stroke-width", 1.5)
-                                .style("fill-opacity", 0.6)
-                                .style("opacity", 0.8)
-                                .attr("class", `fp-bar-rect bin-idx-${byBin.length-1-i}`);
-                            xStart += fpWidth;
-                            // Draw FN segment
-                            g.append("rect")
-                                .attr("x", xStart)
-                                .attr("y", binY)
-                                .attr("width", fnWidth)
-                                .attr("height", binHeight)
-                                .attr("fill", "white")
-                                .attr("stroke", colors[binData.FN.length > 0 ? binData.FN[0].pred_label % colors.length : 0])
-                                .attr("stroke-width", 1.5)
-                                .style("opacity", 0.8)
-                                .attr("class", `fn-bar-rect bin-idx-${byBin.length-1-i}`);
-                            
+                            // 按 TP/FP/FN 比例分段
+                            const tpRatio = totalCount > 0 ? tpCount / totalCount : 0;
+                            const fpRatio = totalCount > 0 ? fpCount / totalCount : 0;
+                            const fnRatio = totalCount > 0 ? fnCount / totalCount : 0;
+
+                            let yStart = binY;
+                            // TP segment
+                            const tpHeight = stackHeight * tpRatio;
+                            if (tpHeight > 0) {
+                                g.append("rect")
+                                    .attr("x", baselineX)
+                                    .attr("y", yStart)
+                                    .attr("width", subplotWidth - baselineX - 10)
+                                    .attr("height", tpHeight)
+                                    .attr("fill", colors[binData.TP.length > 0 ? binData.TP[0].true_label % colors.length : 0])
+                                    .attr("stroke", "none")
+                                    .style("opacity", 0.8)
+                                    .attr("class", `tp-bar-rect bin-idx-${i}`);
+                                yStart += tpHeight;
+                            }
+                            // FP segment
+                            const fpHeight = stackHeight * fpRatio;
+                            if (fpHeight > 0) {
+                                g.append("rect")
+                                    .attr("x", baselineX)
+                                    .attr("y", yStart)
+                                    .attr("width", subplotWidth - baselineX - 10)
+                                    .attr("height", fpHeight)
+                                    .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
+                                    .attr("stroke", "black")
+                                    .attr("stroke-width", 1.5)
+                                    .style("fill-opacity", 0.6)
+                                    .style("opacity", 0.8)
+                                    .attr("class", `fp-bar-rect bin-idx-${i}`);
+                                yStart += fpHeight;
+                            }
+                            // FN segment
+                            const fnHeight = stackHeight * fnRatio;
+                            if (fnHeight > 0) {
+                                g.append("rect")
+                                    .attr("x", baselineX)
+                                    .attr("y", yStart)
+                                    .attr("width", subplotWidth - baselineX - 10)
+                                    .attr("height", fnHeight)
+                                    .attr("fill", "white")
+                                    .attr("stroke", colors[binData.FN.length > 0 ? binData.FN[0].pred_label % colors.length : 0])
+                                    .attr("stroke-width", 1.5)
+                                    .style("opacity", 0.8)
+                                    .attr("class", `fn-bar-rect bin-idx-${i}`);
+                                yStart += fnHeight;
+                            }
                         } else {
                             tpToShow.forEach((dataPoint, i) => {
                                 let col = i % rowsPerBin;
