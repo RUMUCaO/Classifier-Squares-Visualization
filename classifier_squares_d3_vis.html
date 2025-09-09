@@ -530,7 +530,20 @@
                         // Reverse traversal, i=0 is the highest score bin (0.9-1.0), i=9 is the lowest score bin (0-0.1)
                         const binData = byBin[byBin.length - 1 - i];
                         let y_base, binY;
-                        // Stack mode: draw only one horizontal bar per bin, split into TP/FP/FN segments by proportion
+                        if (view_mode === "stacks") {
+                            binY =  (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
+                            y_base = binY;
+                        } else {
+                            binY = null;
+                            y_base = (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
+                        }
+
+                        // TP horizontal bar
+                        const tpFiltered = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"}));
+                        const tpCount = tpFiltered.length;
+                        const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
+                        const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
+                        const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
                         if (view_mode === "stacks") {
                             binY =  (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
                             y_base = binY;
@@ -588,6 +601,7 @@
                                 .attr("stroke-width", 1.5)
                                 .style("opacity", 0.8)
                                 .attr("class", `fn-bar-rect bin-idx-${byBin.length-1-i}`);
+                            
                         } else {
                             tpToShow.forEach((dataPoint, i) => {
                                 let col = i % rowsPerBin;
@@ -613,7 +627,7 @@
                                     .style("opacity", isBookmarked ? 1 : 0.8)
                                     .style("cursor", "pointer")
                                     .attr("class", `instance-${dataPoint.instance_id}`);
-                            });// ...existing code for non-stack mode...
+                            });
                         }
                         if (tpOverflow > 0) {
                             let overflowX = baselineX + tpToShow.length * (boxSize + spacing) + 8;
