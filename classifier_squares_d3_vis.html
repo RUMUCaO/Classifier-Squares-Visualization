@@ -142,12 +142,18 @@
                 let match = "";
                 if (d.true_label === d.pred_label) {
                     match = "TP";
-                } else if (d.pred_label !== d.true_label) {
-                    match = "FP";
-                } else if (d.true_label !== d.pred_label) {
-                    match = "FN";
+                } else {
+                    // FP: Predicted as this class but actually not
+                    if (d.pred_label !== d.true_label) {
+                        match = "FP";
+                    }
+                    // FN: Actually this class but not predicted as this class
+                    // FN和FP可以重叠（即一个实例既是FP又是某个类的FN）
+                    // 所以这里如果true_label !== pred_label，也要赋值FN
+                    if (d.true_label !== d.pred_label) {
+                        match = "FN";
+                    }
                 }
-                // 互斥逻辑：TP优先，其次FP，其次FN
                 return {
                     ...d,
                     match,
