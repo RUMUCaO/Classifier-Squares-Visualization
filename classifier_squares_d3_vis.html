@@ -296,7 +296,7 @@
                 polylineGroup.selectAll(".instance-polyline").remove();
                 polylineGroup.selectAll(".score-dot").remove();
                 
-                // 统一 yScale 映射
+                // Unified yScale display
                 const svgHeight = +svg.attr("height") || 800;
                 const yScale = d3.scaleLinear().domain([0, 1]).range([svgHeight - 120, 70]);
                 const baselineX = 25; // Consistent with the main draw
@@ -348,7 +348,7 @@
             function draw(view_mode) {
                 d3.select("#multi-class-vis").html("");
 
-                                // 动态调整 boxSize，数据量大时自动缩小
+                                // Dynamically adjust boxSize, automatically shrink when data volume is large
                                                 const byBinPreview = Array.from({length: 10}, () => ({TP: [], FP: [], FN: []}));
                                                 data.forEach(d => {
                                                         const bin = Math.min(Math.floor(d.pred_score * 10), 9);
@@ -359,15 +359,15 @@
                                                 const maxInstances = Math.max(
                                                     ...byBinPreview.map(binData => binData.TP.length + binData.FP.length + binData.FN.length)
                                                 );
-                                                // 自动调整 boxSize，rowsPerBin，subplotWidth
-                                                const boxSize = Math.max(1, 6 - Math.floor(maxInstances / 100)); // 最小1，最大6
+                                                // Automatically adjust boxSize, rowsPerBin, subplotWidth
+                                                const boxSize = Math.max(1, 10 - Math.floor(maxInstances / 100)); // 最小1，最大6
                                                 const spacing = 2;
-                                                // 计算所有 class 的最大 box 数，统一设置 rowsPerBin 和 subplotWidth
+                                                // Calculate the maximum number of boxes for all classes, set rowsPerBin and subplotWidth uniformly
                                                 const binMaxCounts = byBinPreview.map(binData => binData.TP.length + binData.FP.length + binData.FN.length);
                                                 const globalMaxBoxes = Math.max(10, ...binMaxCounts);
-                                                // rowsPerBin 设置最大上限，防止太宽
+                                                // Set the maximum limit for rowsPerBin to prevent it from being too wide
                                                 const rowsPerBin = Math.min(Math.max(10, globalMaxBoxes), 50); // 最多50列
-                                                // subplotWidth 统一设置，防止某个 class 区域过宽
+                                                // Set subplotWidth uniformly to prevent any class area from being too wide
                                                 const subplotWidth = Math.min(Math.max(100, boxSize * rowsPerBin + spacing * (rowsPerBin - 1) + 60), 150); // 最宽150
                 const binHeight = 0.1;
                 const maxBin = 10;
@@ -520,7 +520,7 @@
                     });
 
                     // Draw TP, FP, FN, show hints when overflow
-                    // stack mode: high score bins on top, low score bins on bottom, and each bin has the same height
+                    // Stack mode: high score bins on top, low score bins on bottom, and each bin has the same height
                     let binCount = maxBin;
                     let binHeight = boxSize;
                     let binSpacing = spacing;
@@ -561,7 +561,7 @@
                                 let col = i % rowsPerBin;
                                 let row = Math.floor(i / rowsPerBin);
                                 let x = baselineX + col * (boxSize + spacing);
-                                // 限制 x 不超出 subplotWidth - boxSize - 10
+                                // Limit x so it does not exceed subplotWidth - boxSize - 10
                                 if (x > subplotWidth - boxSize - 10) {
                                     col = 0;
                                     row += 1;
@@ -651,7 +651,7 @@
                         hideBarTooltip();
                     });
                 }
-        // stack mode bar tooltip
+        // Stack mode bar tooltip
         function showBarTooltip(event, text) {
             let tooltip = document.getElementById("bar-tooltip");
             if (!tooltip) {
@@ -689,6 +689,7 @@
                                 let col = i % rowsPerBin;
                                 let row = Math.floor(i / rowsPerBin);
                                 let x = baselineX + (tpToShow.length + col) * (boxSize + spacing);
+                                // Limit x so it does not exceed subplotWidth - boxSize - 10
                                 if (x > subplotWidth - boxSize - 10) {
                                     col = 0;
                                     row += 1;
@@ -743,7 +744,7 @@
                             let x = baselineX - (col + 1) * (boxSize + spacing);
                             const y = y_base - row * (boxSize + spacing);
                             const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            // 如果 x < 0，说明超出左边界，不显示 box
+                            // If x < 0, it means it exceeds the left boundary, do not display the box
                             if (x >= 0) {
                                 g.append("rect")
                                     .datum({...dataPoint, match: "FN"})
@@ -760,18 +761,18 @@
                             }
                         });
                         if (fnOverflow > 0) {
-                            // 自动定位到实际显示的最左边 FN box 左侧
+                            // Automatically position to the left of the actual leftmost FN box
                             let minX = null;
                             fnToShow.forEach((dataPoint, i) => {
                                 let col = i % rowsPerBin;
                                 let x = baselineX - (col + 1) * (boxSize + spacing);
                                 if (minX === null || (x < minX && x >= 0)) minX = x;
                             });
-                            // 如果没有显示 box，则回退到理论位置
+                            // If no box is displayed, fall back to theoretical position
                             if (minX === null) {
                                 minX = baselineX - (fnToShow.length) * (boxSize + spacing);
                             }
-                            const overflowX = minX - boxSize - 40; // 再向左挪 40px，避免靠近线z
+                            const overflowX = minX - boxSize - 40; // Move further left by 40px to avoid being close to the line
                             const overflowY = y_base - 2;
                             g.append("text")
                                 .text(`<<< +${fnOverflow}`)
@@ -816,7 +817,7 @@
             tooltip.style.display = "block";
             const mouseX = event.clientX;
             const mouseY = event.clientY;
-            // FN overflow提示距离鼠标更近
+            // FN overflow prompts you to move closer to the mouse
             let leftOffset = type === "FN" ? 5 : 20;
             tooltip.style.left = (mouseX + leftOffset) + "px";
             tooltip.style.top = (mouseY - 10) + "px";
