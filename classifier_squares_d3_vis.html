@@ -584,7 +584,7 @@
                             // 当前bin条宽度
                             const barWidth = totalCount > 0 ? (totalCount / maxGlobalBinTotal) * barMaxWidth : 0;
                             // stack的y坐标
-                            const barY = 70 + i * ((svgHeight - 120 - 70) / maxBin);
+                            const barY = 70 + (i * binHeight);
                             // 按FN/TP/FP比例分段
                             const fnRatio = totalCount > 0 ? fnCount / totalCount : 0;
                             const tpRatio = totalCount > 0 ? tpCount / totalCount : 0;
