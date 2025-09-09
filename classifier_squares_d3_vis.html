@@ -530,7 +530,7 @@
                         // Reverse traversal, i=0 is the highest score bin (0.9-1.0), i=9 is the lowest score bin (0-0.1)
                         const binData = byBin[byBin.length - 1 - i];
                         let y_base, binY;
-                        // Stack mode: normalized grouped bar for TP/FP/FN
+                        // Stack mode: only one horizontal bar per bin, split into TP/FP/FN segments
                         if (view_mode === "stacks") {
                             binY =  (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
                             y_base = binY;
@@ -553,47 +553,39 @@
                             const fnWidth = totalCount > 0 ? (fnCount / totalCount) * barWidth : 0;
                             let xStart = baselineX;
 
-                            // TP segment
-                            if (tpCount > 0) {
-                                g.append("rect")
-                                    .attr("x", xStart)
-                                    .attr("y", binY)
-                                    .attr("width", tpWidth)
-                                    .attr("height", binHeight)
-                                    .attr("fill", colors[binData.TP.length > 0 ? binData.TP[0].true_label % colors.length : 0])
-                                    .attr("stroke", "none")
-                                    .style("opacity", 0.8)
-                                    .attr("class", `tp-bar-rect bin-idx-${byBin.length-1-i}`);
-                                xStart += tpWidth;
-                            }
-                            // FP segment
-                            if (fpCount > 0) {
-                                g.append("rect")
-                                    .attr("x", xStart)
-                                    .attr("y", binY)
-                                    .attr("width", fpWidth)
-                                    .attr("height", binHeight)
-                                    .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
-                                    .attr("stroke", "black")
-                                    .attr("stroke-width", 1.5)
-                                    .style("fill-opacity", 0.6)
-                                    .style("opacity", 0.8)
-                                    .attr("class", `fp-bar-rect bin-idx-${byBin.length-1-i}`);
-                                xStart += fpWidth;
-                            }
-                            // FN segment
-                            if (fnCount > 0) {
-                                g.append("rect")
-                                    .attr("x", xStart)
-                                    .attr("y", binY)
-                                    .attr("width", fnWidth)
-                                    .attr("height", binHeight)
-                                    .attr("fill", "white")
-                                    .attr("stroke", colors[binData.FN.length > 0 ? binData.FN[0].pred_label % colors.length : 0])
-                                    .attr("stroke-width", 1.5)
-                                    .style("opacity", 0.8)
-                                    .attr("class", `fn-bar-rect bin-idx-${byBin.length-1-i}`);
-                            }
+                            // Draw one bar split into three segments
+                            g.append("rect")
+                                .attr("x", xStart)
+                                .attr("y", binY)
+                                .attr("width", tpWidth)
+                                .attr("height", binHeight)
+                                .attr("fill", colors[binData.TP.length > 0 ? binData.TP[0].true_label % colors.length : 0])
+                                .attr("stroke", "none")
+                                .style("opacity", 0.8)
+                                .attr("class", `tp-bar-rect bin-idx-${byBin.length-1-i}`);
+                            xStart += tpWidth;
+                            g.append("rect")
+                                .attr("x", xStart)
+                                .attr("y", binY)
+                                .attr("width", fpWidth)
+                                .attr("height", binHeight)
+                                .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
+                                .attr("stroke", "black")
+                                .attr("stroke-width", 1.5)
+                                .style("fill-opacity", 0.6)
+                                .style("opacity", 0.8)
+                                .attr("class", `fp-bar-rect bin-idx-${byBin.length-1-i}`);
+                            xStart += fpWidth;
+                            g.append("rect")
+                                .attr("x", xStart)
+                                .attr("y", binY)
+                                .attr("width", fnWidth)
+                                .attr("height", binHeight)
+                                .attr("fill", "white")
+                                .attr("stroke", colors[binData.FN.length > 0 ? binData.FN[0].pred_label % colors.length : 0])
+                                .attr("stroke-width", 1.5)
+                                .style("opacity", 0.8)
+                                .attr("class", `fn-bar-rect bin-idx-${byBin.length-1-i}`);
                         } else {
                             // ...existing code for non-stack mode...
                         }
