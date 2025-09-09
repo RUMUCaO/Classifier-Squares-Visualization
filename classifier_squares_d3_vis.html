@@ -134,7 +134,7 @@
             
             let bookmarkedInstances = new Set();
             let polylinesVisible = false;
-            let currentFilter = "all";const tpFiltered = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"}));
+            let currentFilter = "all";
             let instanceIdCounter = 0;
             
             // Correctly distinguish TP, FP, FN
@@ -142,18 +142,13 @@
                 let match = "";
                 if (d.true_label === d.pred_label) {
                     match = "TP";
-                } else {
+                } else if (d.pred_label !== d.true_label) {
                     // FP: Predicted as this class but actually not
-                    if (d.pred_label !== d.true_label) {
-                        match = "FP";
-                    }
-                    // FN: Actually this class but not predicted as this class
-                    // FN和FP可以重叠（即一个实例既是FP又是某个类的FN）
-                    // 所以这里如果true_label !== pred_label，也要赋值FN
-                    if (d.true_label !== d.pred_label) {
-                        match = "FN";
-                    }
+                    match = "FP";
+                    // But for visualization, class_focus needs special handling, pay attention to grouping later
                 }
+                // FN: Actually this class but not predicted as this class
+                // The match for FN will be handled in grouping later
                 return {
                     ...d,
                     match,
