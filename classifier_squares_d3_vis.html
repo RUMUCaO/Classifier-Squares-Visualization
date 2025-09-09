@@ -566,12 +566,15 @@
                         const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
                         const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
                         const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
+                        const fnFiltered = binData.FN.filter(d => shouldShowInstance(d));
+                        const fnCount = fnFiltered.length;
                         if (view_mode === "stacks") {
                             // 重新绘制stack模式：每个bin只画一个横向分段条，宽度按比例，内部按FN/TP/FP分段
                             // 统计每个bin的TP/FP/FN数量
-                            const tpCount = binData.TP.filter(d => shouldShowInstance(d)).length;
+                            const tpCount = tpFiltered.length;
                             const fpCount = binData.FP.filter(d => shouldShowInstance(d)).length;
-                            const fnCount = binData.FN.filter(d => shouldShowInstance(d)).length;
+                            // FN 计数统一用 fnFiltered.length
+                            // const fnCount = binData.FN.filter(d => shouldShowInstance(d)).length;
                             console.log('bin', i, 'TP:', tpCount, 'FP:', fpCount, 'FN:', fnCount, 'total:', tpCount + fpCount + fnCount);
                             const totalCount = tpCount + fpCount + fnCount;
 
