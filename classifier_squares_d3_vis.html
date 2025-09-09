@@ -142,13 +142,18 @@
                 let match = "";
                 if (d.true_label === d.pred_label) {
                     match = "TP";
-                } else if (d.pred_label !== d.true_label) {
+                } else {
                     // FP: Predicted as this class but actually not
-                    match = "FP";
-                    // But for visualization, class_focus needs special handling, pay attention to grouping later
+                    if (d.pred_label !== d.true_label) {
+                        match = "FP";
+                    }
+                    // FN: Actually this class but not predicted as this class
+                    // FN和FP可以重叠（即一个实例既是FP又是某个类的FN）
+                    // 所以这里如果true_label !== pred_label，也要赋值FN
+                    if (d.true_label !== d.pred_label) {
+                        match = "FN";
+                    }
                 }
-                // FN: Actually this class but not predicted as this class
-                // The match for FN will be handled in grouping later
                 return {
                     ...d,
                     match,
