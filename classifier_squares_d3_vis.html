@@ -771,7 +771,7 @@
                             if (minX === null) {
                                 minX = baselineX - (fnToShow.length) * (boxSize + spacing);
                             }
-                            const overflowX = minX - 8; // 紧挨最左边 FN box 左侧，略微左移
+                            const overflowX = minX - 28; // 再向左挪 20px，避免靠近线
                             const overflowY = y_base - 2;
                             g.append("text")
                                 .text(`<<< +${fnOverflow}`)
