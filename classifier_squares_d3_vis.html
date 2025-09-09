@@ -562,21 +562,18 @@
                         }
 
                         // TP horizontal bar
-                        const tpFiltered = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"}));
+                        const tpFiltered = binData.TP.filter(d => shouldShowInstance(d));
                         const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
                         const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
                         const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
                         if (view_mode === "stacks") {
                             // 重新绘制stack模式：每个bin只画一个横向分段条，宽度按比例，内部按FN/TP/FP分段
                             // 统计每个bin的TP/FP/FN数量
-                            const tpCount = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length;
-                            const fpCount = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length;
-                            const fnCount = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"})).length;
+                            const tpCount = binData.TP.filter(d => shouldShowInstance(d)).length;
+                            const fpCount = binData.FP.filter(d => shouldShowInstance(d)).length;
+                            const fnCount = binData.FN.filter(d => shouldShowInstance(d)).length;
+                            console.log('bin', i, 'TP:', tpCount, 'FP:', fpCount, 'FN:', fnCount, 'total:', tpCount + fpCount + fnCount);
                             const totalCount = tpCount + fpCount + fnCount;
-
-                            // 计算最大bin实例数（TP+FP+FN）
-                            const binTotals = byBin.map(b => b.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length + b.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length + b.FN.filter(d => shouldShowInstance({...d, match: "FN"})).length);
-                            const maxBinTotal = Math.max(...binTotals, 1);
 
                             // 横向条最大宽度
                             const barMaxWidth = subplotWidth - baselineX - 10;
@@ -686,7 +683,7 @@
                         }
 
                         // FP follows TP
-                        const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"}));
+                        const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d}));
                         const fpSorted = fpFiltered.slice().sort((a, b) => a.score - b.score);
                         const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
                         const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
@@ -805,7 +802,7 @@
 
                         // FN on the left, grows right to left
                         if (view_mode !== "stacks") {
-                            const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
+                            const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d}));
                             const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
                             const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
                             fnToShow.forEach((dataPoint, i) => {
