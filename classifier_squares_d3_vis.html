@@ -777,61 +777,63 @@
                         }
 
                         // FN on the left, grows right to left
-                        const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
-                        const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
-                        const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
-                        fnToShow.forEach((dataPoint, i) => {
-                            let col = i % rowsPerBin;
-                            let row = Math.floor(i / rowsPerBin);
-                            let x = baselineX - (col + 1) * (boxSize + spacing);
-                            const y = y_base - row * (boxSize + spacing);
-                            const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                            // If x < 0, it means it exceeds the left boundary, do not display the box
-                            if (x >= 0) {
-                                g.append("rect")
-                                    .datum({...dataPoint, match: "FN"})
-                                    .attr("x", x)
-                                    .attr("y", y)
-                                    .attr("width", boxSize)
-                                    .attr("height", boxSize)
-                                    .attr("fill", "white")
-                                    .attr("stroke", isBookmarked ? "#ff6b6b" : colors[dataPoint.pred_label % colors.length])
-                                    .attr("stroke-width", isBookmarked ? 3 : 1.5)
-                                    .style("opacity", isBookmarked ? 1 : 0.8)
-                                    .style("cursor", "pointer")
-                                    .attr("class", `instance-${dataPoint.instance_id}`);
-                            }
-                        });
-                        if (fnOverflow > 0) {
-                            // Automatically position to the left of the actual leftmost FN box
-                            let minX = null;
+                        if (view_mode !== "stacks") {
+                            const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"}));
+                            const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
+                            const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
                             fnToShow.forEach((dataPoint, i) => {
                                 let col = i % rowsPerBin;
+                                let row = Math.floor(i / rowsPerBin);
                                 let x = baselineX - (col + 1) * (boxSize + spacing);
-                                if (minX === null || (x < minX && x >= 0)) minX = x;
+                                const y = y_base - row * (boxSize + spacing);
+                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
+                                // If x < 0, it means it exceeds the left boundary, do not display the box
+                                if (x >= 0) {
+                                    g.append("rect")
+                                        .datum({...dataPoint, match: "FN"})
+                                        .attr("x", x)
+                                        .attr("y", y)
+                                        .attr("width", boxSize)
+                                        .attr("height", boxSize)
+                                        .attr("fill", "white")
+                                        .attr("stroke", isBookmarked ? "#ff6b6b" : colors[dataPoint.pred_label % colors.length])
+                                        .attr("stroke-width", isBookmarked ? 3 : 1.5)
+                                        .style("opacity", isBookmarked ? 1 : 0.8)
+                                        .style("cursor", "pointer")
+                                        .attr("class", `instance-${dataPoint.instance_id}`);
+                                }
                             });
-                            // If no box is displayed, fall back to theoretical position
-                            if (minX === null) {
-                                minX = baselineX - (fnToShow.length) * (boxSize + spacing);
-                            }
-                            const overflowX = minX - boxSize - 40; // Move further left by 40px to avoid being close to the line
-                            const overflowY = y_base - 2;
-                            g.append("text")
-                                .text(`<<< +${fnOverflow}`)
-                                .attr("x", overflowX)
-                                .attr("y", overflowY)
-                                .attr("fill", colors[fnFiltered.length > 0 ? fnFiltered[0].pred_label % colors.length : 0])
-                                .style("font-size", "13px")
-                                .style("font-weight", "bold")
-                                .style("cursor", "pointer")
-                                .style("background", "#fffbe6")
-                                .attr("class", "overflow-tip overflow-tip-fn")
-                                .on("mouseover", function(event) {
-                                    showOverflowTooltip(event, fnFiltered.slice(MAX_BOX_PER_BIN), "FN");
-                                })
-                                .on("mouseout", function() {
-                                    hideOverflowTooltip();
+                            if (fnOverflow > 0) {
+                                // Automatically position to the left of the actual leftmost FN box
+                                let minX = null;
+                                fnToShow.forEach((dataPoint, i) => {
+                                    let col = i % rowsPerBin;
+                                    let x = baselineX - (col + 1) * (boxSize + spacing);
+                                    if (minX === null || (x < minX && x >= 0)) minX = x;
                                 });
+                                // If no box is displayed, fall back to theoretical position
+                                if (minX === null) {
+                                    minX = baselineX - (fnToShow.length) * (boxSize + spacing);
+                                }
+                                const overflowX = minX - boxSize - 40; // Move further left by 40px to avoid being close to the line
+                                const overflowY = y_base - 2;
+                                g.append("text")
+                                    .text(`<<< +${fnOverflow}`)
+                                    .attr("x", overflowX)
+                                    .attr("y", overflowY)
+                                    .attr("fill", colors[fnFiltered.length > 0 ? fnFiltered[0].pred_label % colors.length : 0])
+                                    .style("font-size", "13px")
+                                    .style("font-weight", "bold")
+                                    .style("cursor", "pointer")
+                                    .style("background", "#fffbe6")
+                                    .attr("class", "overflow-tip overflow-tip-fn")
+                                    .on("mouseover", function(event) {
+                                        showOverflowTooltip(event, fnFiltered.slice(MAX_BOX_PER_BIN), "FN");
+                                    })
+                                    .on("mouseout", function() {
+                                        hideOverflowTooltip();
+                                    });
+                            }
                         }
         // Overflow tooltip
         function showOverflowTooltip(event, overflowData, type) {
