@@ -437,6 +437,29 @@
                     .style("font-weight", "bold")
                     .style("fill", "#333");
 
+                // 统计所有 class 的所有 bin 的实例数
+                let allBinTotals = [];
+                classSet.forEach(cls => {
+                    const byBin = Array.from({length: maxBin}, () => ({TP: [], FP: [], FN: []}));
+                    data.forEach(d => {
+                        if (d.true_label === cls && d.pred_label === cls) {
+                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                            byBin[bin].TP.push(d);
+                        } else if (d.pred_label === cls && d.true_label !== cls) {
+                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                            byBin[bin].FP.push(d);
+                        } else if (d.true_label === cls && d.pred_label !== cls) {
+                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
+                            byBin[bin].FN.push(d);
+                        }
+                    });
+                    byBin.forEach(binData => {
+                        const count = binData.TP.length + binData.FP.length + binData.FN.length;
+                        allBinTotals.push(count);
+                    });
+            });
+                const maxGlobalBinTotal = Math.max(...allBinTotals, 1);
+
                 group.each(function(cls, classIdx) {
                     const g = d3.select(this);
                     // Y-axis overall left shift (original 50, now 25)
@@ -559,7 +582,7 @@
                             // 横向条最大宽度
                             const barMaxWidth = subplotWidth - baselineX - 10;
                             // 当前bin条宽度
-                            const barWidth = totalCount > 0 ? (totalCount / maxBinTotal) * barMaxWidth : 0;
+                            const barWidth = totalCount > 0 ? (totalCount / maxGlobalBinTotal) * barMaxWidth : 0;
                             // stack的y坐标
                             const barY = 70 + i * ((svgHeight - 120 - 70) / maxBin);
                             // 按FN/TP/FP比例分段
@@ -671,19 +694,9 @@
                         const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
                         const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
                         if (view_mode === "stacks") {
-                            if (fpCount > 0) {
-                                g.append("rect")
-                                    .attr("x", baselineX)
-                                    .attr("y", binY + binHeight + binSpacing)
-                                    .attr("width", fpCount * boxSize + Math.max(0, fpCount - 1) * spacing)
-                                    .attr("height", binHeight)
-                                    .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
-                                    .attr("stroke", "black")
-                                    .attr("stroke-width", 1.5)
-                                    .style("fill-opacity", 0.6)
-                                    .style("opacity", 0.8)
-                                    .attr("class", `fp-bar-rect bin-idx-${byBin.length-1-i}`);
-                            }
+                            // In stack mode, boxes are not drawn, only the horizontal bar is drawn above
+                            // The bar has been drawn above, no need to draw boxes here
+                            
                         } else {
                 // Bind stack bar hover events (draw last)
                 if (view_mode === "stacks") {
