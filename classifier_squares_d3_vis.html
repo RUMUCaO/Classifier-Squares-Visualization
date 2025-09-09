@@ -545,7 +545,7 @@
                         const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
                         const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
                         if (view_mode === "stacks") {
-                            // 修正stack模式：每个bin只画一个横向分段条，宽度按bin实例数/最大bin实例数，内部按FN/TP/FP比例分段
+                            // 重新绘制stack模式：每个bin只画一个横向分段条，宽度按比例，内部按FN/TP/FP分段
                             const tpCount = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length;
                             const fpCount = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length;
                             const fnCount = binData.FN.filter(d => shouldShowInstance({...d, match: "FN"})).length;
