@@ -545,17 +545,18 @@
                         const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
                         const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
                         if (view_mode === "stacks") {
-                            // 横向stack，只画一个条，不画FN box，不画多余FP stack
+                            // 重新绘制stack模式：每个bin只画一个横向分段条
                             const tpCount = binData.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length;
                             const fpCount = binData.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length;
                             const totalCount = tpCount + fpCount;
 
-                            // 最大bin实例数
+                            // 计算最大bin实例数（只考虑TP+FP）
                             const binTotals = byBin.map(b => b.TP.filter(d => shouldShowInstance({...d, match: "TP"})).length + b.FP.filter(d => shouldShowInstance({...d, match: "FP"})).length);
                             const maxBinTotal = Math.max(...binTotals, 1);
 
-                            // 横向条宽度
+                            // 横向条最大宽度
                             const barMaxWidth = subplotWidth - baselineX - 10;
+                            // 当前bin条宽度
                             const barWidth = totalCount > 0 ? (totalCount / maxBinTotal) * barMaxWidth : 0;
                             // stack的y坐标
                             const barY = 70 + i * ((svgHeight - 120 - 70) / maxBin);
@@ -564,6 +565,7 @@
                             const tpRatio = totalCount > 0 ? tpCount / totalCount : 0;
                             const fpRatio = totalCount > 0 ? fpCount / totalCount : 0;
 
+                            // 只画一个横向条，内部分段
                             let xStart = baselineX;
                             // TP segment
                             const tpWidth = barWidth * tpRatio;
@@ -595,6 +597,7 @@
                                     .attr("class", `fp-bar-rect bin-idx-${i}`);
                                 xStart += fpWidth;
                             }
+                            // 不画FN box，不画多余stack
                         } else {
                             tpToShow.forEach((dataPoint, i) => {
                                 let col = i % rowsPerBin;
