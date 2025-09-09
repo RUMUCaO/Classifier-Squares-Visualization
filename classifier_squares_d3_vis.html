@@ -583,8 +583,7 @@
                             const barMaxWidth = subplotWidth - baselineX - 10;
                             // 当前bin条宽度
                             const barWidth = totalCount > 0 ? (totalCount / maxGlobalBinTotal) * barMaxWidth : 0;
-                            // stack的y坐标
-                            const barY = 70 + (i * binHeight);
+                            const barY = (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
                             // 按FN/TP/FP比例分段
                             const fnRatio = totalCount > 0 ? fnCount / totalCount : 0;
                             const tpRatio = totalCount > 0 ? tpCount / totalCount : 0;
