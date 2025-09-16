@@ -259,10 +259,17 @@
 
         if (showBoxes){
           const layer = g.append("g").attr("class","layer boxes");
+          // 统一方块边长与步距（左右都用同一套）
+          const cell = Math.max(cfg.minCell, Math.floor(Math.min(xRight.bandwidth(), xLeft.bandwidth())));
+          const stepX = cell + cfg.spacing;      // 横向步距
+          const stepY = cell + cfg.spacing;      // 纵向步距（行距）
+          const colsR = Math.max(1, Math.floor(rightWidth / stepX)); // 右侧每行最多列数（TP/FP）
+          const colsL = Math.max(1, Math.floor(leftWidth  / stepX)); // 左侧每行最多列数（FN）
+
           const items = [];
           for (let v=9; v>=0; v--){
+
             const binIdx = v, binTop = yBin(binIdx), binH = yBin.bandwidth();
-            const pitchY = Math.max(cfg.minCell, xRight.bandwidth()) + cfg.spacing;
 
             // 过滤（按当前类的类型）
             const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
@@ -277,22 +284,30 @@
             const fpOverflow = Math.max(0, fpAll.length - fp.length);
             const fnOverflow = Math.max(0, fnAll.length - fn.length);
 
-            // TP（右侧）
+            // --- TP（右侧，从 baseline 向右排）---
             tp.forEach((d,i)=>{
-              const col = i % cfg.rowsPerBin, row = Math.floor(i/cfg.rowsPerBin);
-              items.push({key:`TP-${cls}-${binIdx}-${d.instance_id}`, type:"TP", d, x:xRight(col), y:binTop+binH-(row+1)*pitchY, w:xRight.bandwidth(), h:xRight.bandwidth()});
+              const col = i % colsR, row = Math.floor(i / colsR);
+              const x = cfg.baselineX + col * stepX;
+              const y = binTop + binH - (row + 1) * stepY;
+              items.push({key:`TP-${cls}-${binIdx}-${d.instance_id}`, type:"TP", d, x, y, w:cell, h:cell});
             });
-            // FP 接在 TP 后
+
+            // --- FP（紧接 TP 之后继续向右排）---
             const start = Math.min(tpAll.length, cfg.maxBoxesPerBinRender);
             fp.forEach((d,i)=>{
-              const k = start + i, col = k % cfg.rowsPerBin, row = Math.floor(k/cfg.rowsPerBin);
-              items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x:xRight(col), y:binTop+binH-(row+1)*pitchY, w:xRight.bandwidth(), h:xRight.bandwidth()});
+              const k = start + i;
+              const col = k % colsR, row = Math.floor(k / colsR);
+              const x = cfg.baselineX + col * stepX;
+              const y = binTop + binH - (row + 1) * stepY;
+              items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x, y, w:cell, h:cell});
             });
-            // FN（左侧镜像）
+
+            // --- FN（左侧，从 baseline 向左排，镜像）---
             fn.forEach((d,i)=>{
-              const col = i % cfg.rowsPerBin, row = Math.floor(i/cfg.rowsPerBin);
-              const x = xLeft(cfg.rowsPerBin-1-col);
-              if (x != null) items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y:binTop+binH-(row+1)*pitchY, w:xLeft.bandwidth(), h:xLeft.bandwidth()});
+              const col = i % colsL, row = Math.floor(i / colsL);
+              const x = cfg.baselineX - (col + 1) * stepX; // 向左
+              const y = binTop + binH - (row + 1) * stepY;
+              if (x >= 0) items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
             });
 
             // 溢出标记
@@ -328,6 +343,7 @@
             }
           }
 
+          // 用统一的 cell 渲染 rect
           const rects = layer.selectAll("rect.instance")
             .data(items, d=>d.key)
             .join(
@@ -348,6 +364,7 @@
               return "none";
             })
             .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 2.5 : (d.type==="FN"||d.type==="FP") ? 1.2 : 0);
+
 
           const tip = d3.select("#tooltip");
           rects.on("mouseover", (ev,dd)=>{
