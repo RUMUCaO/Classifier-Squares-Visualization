@@ -96,6 +96,7 @@
       baselineX: 25,
       spacing: 2,
       minCell: 6,
+      maxCell: opts.maxCell ?? 64,      // 新增：方块像素上限
       rowsPerBin: opts.rowsPerBin ?? 10,
       maxBoxesPerBinRender: 5000,
     };
@@ -234,12 +235,14 @@
         const rightWidth = cfg.subplotWidth - cfg.baselineX - 10;
         const leftWidth  = cfg.baselineX - 10;
 
-        const xRight = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]).paddingInner(cfg.spacing / Math.max(1,rightWidth));
-        const xLeft  = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX - leftWidth, cfg.baselineX]).paddingInner(cfg.spacing / Math.max(1,leftWidth));
-        const barWidth = d3.scaleLinear().domain([0, maxGlobalBinTotal]).range([0, rightWidth]).clamp(true);
-
-        const autoShowBoxes = (xRight.bandwidth() >= cfg.minCell) && (yBin.bandwidth() >= cfg.minCell*1.5);
+        // 用 scale 探测 LOD（只用于“是否显示 boxes”的判断）
+        const xRightProbe = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]);
+        const xLeftProbe  = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX - leftWidth, cfg.baselineX]);
+        const cellProbe   = Math.max(cfg.minCell, Math.floor(Math.min(xRightProbe.bandwidth(), xLeftProbe.bandwidth())));
+        const autoShowBoxes = (cellProbe >= cfg.minCell) && (yBin.bandwidth() >= cfg.minCell * 1.5);
         const showBoxes = (viewMode==="auto") ? autoShowBoxes : (viewMode==="boxes");
+
+        const barWidth = d3.scaleLinear().domain([0, maxGlobalBinTotal]).range([0, rightWidth]).clamp(true);
 
         // metrics
         const TP = d3.sum(bins, b => b.TP.length), FP = d3.sum(bins, b => b.FP.length), FN = d3.sum(bins, b => b.FN.length);
@@ -259,26 +262,36 @@
 
         if (showBoxes){
           const layer = g.append("g").attr("class","layer boxes");
-          // 统一方块边长与步距（左右都用同一套）
-          const cell = Math.max(cfg.minCell, Math.floor(Math.min(xRight.bandwidth(), xLeft.bandwidth())));
-          const stepX = cell + cfg.spacing;      // 横向步距
-          const stepY = cell + cfg.spacing;      // 纵向步距（行距）
-          const colsR = Math.max(1, Math.floor(rightWidth / stepX)); // 右侧每行最多列数（TP/FP）
-          const colsL = Math.max(1, Math.floor(leftWidth  / stepX)); // 左侧每行最多列数（FN）
+
+          // —— 严格遵循 rowsPerBin：由列数反推 cell，并左右统一 —— //
+          const colsTarget = Math.max(1, cfg.rowsPerBin);
+          const cellR_byRows = Math.floor((rightWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
+          const cellL_byRows = Math.floor((leftWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
+          const cell = Math.max(cfg.minCell, Math.min(cellR_byRows, cellL_byRows, cfg.maxCell));
+          const stepX = cell + cfg.spacing;
+          const stepY = cell + cfg.spacing;
+          // 能否容纳 rowsPerBin，容不下就下调
+          const colsR = Math.max(1, Math.min(colsTarget, Math.floor((rightWidth + cfg.spacing) / stepX)));
+          const colsL = Math.max(1, Math.min(colsTarget, Math.floor((leftWidth  + cfg.spacing) / stepX)));
 
           const items = [];
           for (let v=9; v>=0; v--){
-
             const binIdx = v, binTop = yBin(binIdx), binH = yBin.bandwidth();
+
+            // —— 限制每个 bin 的最大行数，防止竖向越界 —— //
+            const maxRows = Math.max(1, Math.floor(binH / stepY));
+            const capRight = colsR * maxRows;  // TP+FP 合计容量
+            const capLeft  = colsL * maxRows;  // FN 容量
 
             // 过滤（按当前类的类型）
             const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
             const fpAll = bins[binIdx].FP.filter(d => shouldShow(d, "FP"));
             const fnAll = bins[binIdx].FN.filter(d => shouldShow(d, "FN"));
 
-            const tp = tpAll.slice(0, cfg.maxBoxesPerBinRender);
-            const fp = fpAll.slice(0, cfg.maxBoxesPerBinRender);
-            const fn = fnAll.slice(0, cfg.maxBoxesPerBinRender);
+            // —— 容量裁剪：先 TP，再给 FP 剩余；FN 独立 —— //
+            const tp = tpAll.slice(0, Math.min(capRight, cfg.maxBoxesPerBinRender));
+            const fp = fpAll.slice(0, Math.min(Math.max(0, capRight - tp.length), Math.max(0, cfg.maxBoxesPerBinRender - tp.length)));
+            const fn = fnAll.slice(0, Math.min(capLeft, cfg.maxBoxesPerBinRender));
 
             const tpOverflow = Math.max(0, tpAll.length - tp.length);
             const fpOverflow = Math.max(0, fpAll.length - fp.length);
@@ -287,8 +300,8 @@
             // --- TP（右侧，从 baseline 向右排）---
             tp.forEach((d,i)=>{
               const col = i % colsR, row = Math.floor(i / colsR);
-              const x = cfg.baselineX + col * stepX;
-              const y = binTop + binH - (row + 1) * stepY;
+              const x = Math.round(cfg.baselineX + col * stepX);
+              const y = Math.round(binTop + binH - (row + 1) * stepY);
               items.push({key:`TP-${cls}-${binIdx}-${d.instance_id}`, type:"TP", d, x, y, w:cell, h:cell});
             });
 
@@ -297,16 +310,16 @@
             fp.forEach((d,i)=>{
               const k = start + i;
               const col = k % colsR, row = Math.floor(k / colsR);
-              const x = cfg.baselineX + col * stepX;
-              const y = binTop + binH - (row + 1) * stepY;
+              const x = Math.round(cfg.baselineX + col * stepX);
+              const y = Math.round(binTop + binH - (row + 1) * stepY);
               items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x, y, w:cell, h:cell});
             });
 
             // --- FN（左侧，从 baseline 向左排，镜像）---
             fn.forEach((d,i)=>{
               const col = i % colsL, row = Math.floor(i / colsL);
-              const x = cfg.baselineX - (col + 1) * stepX; // 向左
-              const y = binTop + binH - (row + 1) * stepY;
+              const x = Math.round(cfg.baselineX - (col + 1) * stepX); // 向左
+              const y = Math.round(binTop + binH - (row + 1) * stepY);
               if (x >= 0) items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
             });
 
@@ -343,28 +356,31 @@
             }
           }
 
-          // 用统一的 cell 渲染 rect
+          // 用统一的 cell 渲染 rect（像素对齐）
           const rects = layer.selectAll("rect.instance")
             .data(items, d=>d.key)
             .join(
               enter => enter.append("rect").attr("class","instance")
+                            .attr("shape-rendering","crispEdges")
+                            .attr("vector-effect","non-scaling-stroke")
                             .attr("rx",1.5).attr("ry",1.5)
                             .attr("x",d=>d.x).attr("y",d=>d.y)
                             .attr("width",d=>d.w).attr("height",d=>d.h)
                             .style("cursor","pointer"),
-              update => update.attr("x",d=>d.x).attr("y",d=>d.y).attr("width",d=>d.w).attr("height",d=>d.h),
+              update => update
+                            .attr("x",d=>d.x).attr("y",d=>d.y)
+                            .attr("width",d=>d.w).attr("height",d=>d.h),
               exit => exit.remove()
             )
-            .style("opacity", d => bookmarked.has(d.d.instance_id) ? 1 : 0.85)
-            .attr("fill", d => d.type==="FN" ? "white" : colorByClass(d.d.true_label))
+            .style("opacity", d => bookmarked.has(d.d.instance_id) ? 1 : 0.9)
+            .attr("fill", d => d.type==="FN" ? "#ffffff" : colorByClass(d.d.true_label))
             .attr("stroke", d => {
               if (bookmarked.has(d.d.instance_id)) return "#ff6b6b";
               if (d.type==="FN") return colorByClass(d.d.pred_label);
               if (d.type==="FP") return "#000";
               return "none";
             })
-            .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 2.5 : (d.type==="FN"||d.type==="FP") ? 1.2 : 0);
-
+            .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 2 : (d.type==="FN"||d.type==="FP") ? 1 : 0);
 
           const tip = d3.select("#tooltip");
           rects.on("mouseover", (ev,dd)=>{
