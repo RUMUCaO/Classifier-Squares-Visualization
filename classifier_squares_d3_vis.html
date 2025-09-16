@@ -499,28 +499,45 @@
   }
 
   // ---------- 启动：优先使用注入的 JSON；否则生成演示数据 ----------
-  (function boot(){
-    const instTag = document.getElementById('instances-json');
-    let instances = [];
-    try { instances = JSON.parse(instTag?.textContent || '[]'); } catch(e){ instances = []; }
-    let classNames = [];
-    try { classNames = JSON.parse(document.getElementById('classnames-json')?.textContent || '[]'); } catch(e){ classNames = []; }
+ (function boot(){
+  const instEl  = document.getElementById('instances-json');
+  const namesEl = document.getElementById('classnames-json');
 
-    if (!instances.length) {
-      // 生成演示数据（10 类、约 1500 条）
-      const rng = d3.randomLcg(0.42);
-      const NUM_CLASSES = 10, N = 1500;
-      for (let i=0;i<N;i++){
-        const t = Math.floor(rng()*NUM_CLASSES);
-        const isCorrect = rng() < 0.82;
-        const p = isCorrect ? t : Math.floor(rng()*NUM_CLASSES);
-        const score = Math.max(0, Math.min(1, isCorrect ? (0.6 + rng()*0.4) : (rng()*0.7)));
-        const scores = Array.from({length:NUM_CLASSES}, (_,k)=> (k===p?score:Math.max(0, Math.min(1, rng()*0.9))));
-        instances.push({true_label:t, pred_label:p, pred_score:score, class_scores:scores});
-      }
+  let instances = null;
+  try {
+    const txt = instEl ? instEl.textContent.trim() : "";
+    instances = txt ? JSON.parse(txt) : null;
+  } catch (e) {
+    console.error("Failed to parse #instances-json:", e);
+    instances = null;
+  }
+
+  let classNames = [];
+  try {
+    const txt = namesEl ? namesEl.textContent.trim() : "";
+    classNames = txt ? JSON.parse(txt) : [];
+  } catch (e) {
+    console.warn("Failed to parse #classnames-json, fallback to empty []:", e);
+    classNames = [];
+  }
+
+  if (!Array.isArray(instances) || instances.length === 0) {
+    const mount = document.getElementById('multi-class-vis');
+    if (mount) {
+      mount.innerHTML = `
+        <div style="text-align:center; padding:40px; color:#666; font-size:14px; background:#fff;">
+          <h3 style="margin-top:0;">🚫 未检测到实例数据</h3>
+          <p>请将你的数据写入 <code>&lt;script id="instances-json" type="application/json"&gt;...&lt;/script&gt;</code>。</p>
+          <p>可选：将类名写入 <code>&lt;script id="classnames-json" ...&gt;</code>。</p>
+        </div>`;
     }
-    createClassifierSquaresVisualization(instances, classNames);
-  })();
+    console.error("No instances provided. Aborting render.");
+    return;
+  }
+
+  // 有数据才渲染
+  createClassifierSquaresVisualization(instances, classNames);
+})();
   </script>
 </body>
 </html>
