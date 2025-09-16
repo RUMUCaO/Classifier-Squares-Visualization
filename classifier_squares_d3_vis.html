@@ -79,7 +79,7 @@
     </div>
   </div>
 
-  <!-- 外部数据注入容器（可选）：如果用 Python 注入，填充这两个脚本标签 -->
+  <!-- 外部数据注入容器（可选） -->
   <script id="instances-json" type="application/json"></script>
   <script id="classnames-json" type="application/json"></script>
 
@@ -96,8 +96,9 @@
       baselineX: 25,
       spacing: 2,
       minCell: 6,
-      maxCell: opts.maxCell ?? 64,      // 新增：方块像素上限
+      maxCell: opts.maxCell ?? 64,
       rowsPerBin: opts.rowsPerBin ?? 10,
+      fnSingleRow: opts.fnSingleRow ?? true,   // 关键：左侧 FN 固定单行
       maxBoxesPerBinRender: 5000,
     };
     const colors = d3.schemeCategory10;
@@ -115,7 +116,7 @@
       pred_label: +d.pred_label,
       pred_score: +d.pred_score,
       class_scores: Array.isArray(d.class_scores) ? d.class_scores.map(Number) : null,
-      match: d.true_label === d.pred_label ? "TP" : "FP", // “FN”在每个类面板内体现
+      match: d.true_label === d.pred_label ? "TP" : "FP",
       class_focus: +d.true_label,
       instance_id: iid++
     }));
@@ -126,7 +127,6 @@
       document.getElementById("bookmark-count").textContent = `${bookmarked.size} instances`;
     }
 
-    // 过滤：按“当前类里的类型”（TP/FP/FN）判断
     function shouldShow(d, typeForThisClass) {
       switch (currentFilter) {
         case "bookmarked": return bookmarked.has(d.instance_id);
@@ -202,9 +202,7 @@
                     box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:10px;">
           <b>${type} overflow in bin ${binIdx} (showing ${Math.min(maxShow, arr.length)})</b>
           <ul style="margin:6px 0 0 0; padding:0; list-style:none;">
-            ${arr.slice(0,maxShow).map(d=>(
-              `<li style="margin-bottom:2px;">ID:${d.instance_id} · GT:C${d.true_label} · Pred:C${d.pred_label} · Score:${d.pred_score.toFixed(2)}</li>`
-            )).join("")}
+            ${arr.slice(0,maxShow).map(d=>(`<li style="margin-bottom:2px;">ID:${d.instance_id} · GT:C${d.true_label} · Pred:C${d.pred_label} · Score:${d.pred_score.toFixed(2)}</li>`)).join("")}
           </ul>
           ${arr.length>maxShow? `<div style="color:#e67e22;">… ${arr.length-maxShow} more</div>` : ""}
         </div>`;
@@ -235,7 +233,7 @@
         const rightWidth = cfg.subplotWidth - cfg.baselineX - 10;
         const leftWidth  = cfg.baselineX - 10;
 
-        // 用 scale 探测 LOD（只用于“是否显示 boxes”的判断）
+        // 探测 LOD（只用于切换判断）
         const xRightProbe = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]);
         const xLeftProbe  = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX - leftWidth, cfg.baselineX]);
         const cellProbe   = Math.max(cfg.minCell, Math.floor(Math.min(xRightProbe.bandwidth(), xLeftProbe.bandwidth())));
@@ -263,32 +261,35 @@
         if (showBoxes){
           const layer = g.append("g").attr("class","layer boxes");
 
-          // —— 严格遵循 rowsPerBin：由列数反推 cell，并左右统一 —— //
+          // —— 由列数反推 cell，左右统一 —— //
           const colsTarget = Math.max(1, cfg.rowsPerBin);
           const cellR_byRows = Math.floor((rightWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
           const cellL_byRows = Math.floor((leftWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
           const cell = Math.max(cfg.minCell, Math.min(cellR_byRows, cellL_byRows, cfg.maxCell));
           const stepX = cell + cfg.spacing;
           const stepY = cell + cfg.spacing;
-          // 能否容纳 rowsPerBin，容不下就下调
+
           const colsR = Math.max(1, Math.min(colsTarget, Math.floor((rightWidth + cfg.spacing) / stepX)));
-          const colsL = Math.max(1, Math.min(colsTarget, Math.floor((leftWidth  + cfg.spacing) / stepX)));
+          // 左侧：单行时只需“单行可容纳的列数”，不再按 rowsPerBin 换行
+          const colsL_singleRow = Math.max(1, Math.floor((leftWidth + cfg.spacing) / stepX));
 
           const items = [];
           for (let v=9; v>=0; v--){
             const binIdx = v, binTop = yBin(binIdx), binH = yBin.bandwidth();
 
-            // —— 限制每个 bin 的最大行数，防止竖向越界 —— //
-            const maxRows = Math.max(1, Math.floor(binH / stepY));
-            const capRight = colsR * maxRows;  // TP+FP 合计容量
-            const capLeft  = colsL * maxRows;  // FN 容量
+            // 右侧可用最大行数；左侧如果单行，则固定 1 行
+            const maxRowsRight = Math.max(1, Math.floor(binH / stepY));
+            const maxRowsLeft  = cfg.fnSingleRow ? 1 : maxRowsRight;
 
-            // 过滤（按当前类的类型）
+            const capRight = colsR * maxRowsRight;      // TP+FP 容量
+            const capLeft  = colsL_singleRow * maxRowsLeft; // FN 容量（单行）
+
+            // 过滤
             const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
             const fpAll = bins[binIdx].FP.filter(d => shouldShow(d, "FP"));
             const fnAll = bins[binIdx].FN.filter(d => shouldShow(d, "FN"));
 
-            // —— 容量裁剪：先 TP，再给 FP 剩余；FN 独立 —— //
+            // 容量裁剪：先 TP，再 FP；FN 单行裁剪
             const tp = tpAll.slice(0, Math.min(capRight, cfg.maxBoxesPerBinRender));
             const fp = fpAll.slice(0, Math.min(Math.max(0, capRight - tp.length), Math.max(0, cfg.maxBoxesPerBinRender - tp.length)));
             const fn = fnAll.slice(0, Math.min(capLeft, cfg.maxBoxesPerBinRender));
@@ -297,7 +298,7 @@
             const fpOverflow = Math.max(0, fpAll.length - fp.length);
             const fnOverflow = Math.max(0, fnAll.length - fn.length);
 
-            // --- TP（右侧，从 baseline 向右排）---
+            // --- TP（右侧，按行列网格）---
             tp.forEach((d,i)=>{
               const col = i % colsR, row = Math.floor(i / colsR);
               const x = Math.round(cfg.baselineX + col * stepX);
@@ -305,7 +306,7 @@
               items.push({key:`TP-${cls}-${binIdx}-${d.instance_id}`, type:"TP", d, x, y, w:cell, h:cell});
             });
 
-            // --- FP（紧接 TP 之后继续向右排）---
+            // --- FP（接在 TP 之后）---
             const start = Math.min(tpAll.length, cfg.maxBoxesPerBinRender);
             fp.forEach((d,i)=>{
               const k = start + i;
@@ -315,11 +316,11 @@
               items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x, y, w:cell, h:cell});
             });
 
-            // --- FN（左侧，从 baseline 向左排，镜像）---
+            // --- FN（左侧，单行从 baseline 向左排，不换行）---
             fn.forEach((d,i)=>{
-              const col = i % colsL, row = Math.floor(i / colsL);
-              const x = Math.round(cfg.baselineX - (col + 1) * stepX); // 向左
-              const y = Math.round(binTop + binH - (row + 1) * stepY);
+              const col = i; // 单行：第 i 个就是第 i 列
+              const x = Math.round(cfg.baselineX - (col + 1) * stepX);
+              const y = Math.round(binTop + binH - stepY); // 单行固定在该 bin 的底部一行
               if (x >= 0) items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
             });
 
@@ -356,7 +357,7 @@
             }
           }
 
-          // 用统一的 cell 渲染 rect（像素对齐）
+          // 统一渲染（像素对齐）
           const rects = layer.selectAll("rect.instance")
             .data(items, d=>d.key)
             .join(
@@ -531,7 +532,7 @@
     draw("auto");
   }
 
-  // ---------- 启动：优先使用注入的 JSON；否则生成演示数据 ----------
+  // ---------- 启动 ----------
  (function boot(){
   const instEl  = document.getElementById('instances-json');
   const namesEl = document.getElementById('classnames-json');
@@ -568,7 +569,6 @@
     return;
   }
 
-  // 有数据才渲染
   createClassifierSquaresVisualization(instances, classNames);
 })();
   </script>
