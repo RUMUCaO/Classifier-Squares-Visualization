@@ -1,1096 +1,614 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Classifier Squares D3 Visualization</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        .output_wrapper, .output {
-            max-height: none !important;
-            max-width: none !important;
-            overflow: visible !important;
-        }
-
-        #multi-class-container {
-            max-height: none !important;
-            max-width: none !important;
-            overflow: visible !important;
-        }
-
-        #multi-class-vis svg {
-            display: block;
-            overflow: visible !important;
-        }
-
-        .legend {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
-            font-size: 12px;
-        }
-
-        .legend-item {
-            display: inline-block;
-            margin-right: 20px;
-            margin-bottom: 8px;
-        }
-
-        .legend-color {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            margin-right: 5px;
-            vertical-align: middle;
-            border: 1px solid #333;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Classifier Squares D3 Visualization (Scaled & LOD)</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    #multi-class-container { width: 100%; min-height: 900px; overflow: auto; border:1px solid #ccc; padding:30px; background:#fafafa; }
+    #multi-class-vis svg { display:block; overflow:visible; background:#fff; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.08); }
+    .legend { background:#f8f9fa; border:1px solid #ddd; border-radius:8px; padding:15px; margin-top:20px; font-size:12px; }
+    .legend-item { display:inline-block; margin-right:20px; margin-bottom:8px; }
+    .legend-color { display:inline-block; width:16px; height:16px; margin-right:5px; vertical-align:middle; border:1px solid #333; }
+    .control-panel { margin-top: 20px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .axis text { font-size:12px; fill:#333; }
+  </style>
 </head>
 <body>
-    <div>
-        <label>👁️ View Mode:</label>
-        <select id="view_mode">
-            <option value="boxes" selected>Boxes</option>
-            <option value="stacks">Stacks</option>
-        </select>
-    </div>
-    <br>
-    <div id="tooltip" style="position: absolute; display: none; background: white; border: 1px solid #ccc; padding: 5px; pointer-events: none; font-size: 12px; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
-    <div id="multi-class-container" style="width: 100%; min-height: 900px; overflow: auto; border:1px solid #ccc; padding:30px; background-color: #fafafa;">
-        <div id="multi-class-vis"></div>
-        <!-- Control panel -->
-        <div id="controls" style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-                <div>
-                    <label style="font-weight: bold;">🔗 Parallel Coordinates:</label>
-                    <button id="toggle-polylines" style="margin-left: 5px; padding: 5px 10px; background: #2ecc71; color: white; border: none; border-radius: 3px;">Show</button>
-                    <small style="margin-left: 5px; color: #666;">Hover instances to see cross-class scores</small>
-                </div>
-                <div>
-                    <label style="font-weight: bold;">⭐ Bookmarks:</label>
-                    <span id="bookmark-count" style="margin-left: 5px; color: #666;">0 instances</span>
-                    <button id="clear-bookmarks" style="margin-left: 10px; padding: 5px 10px; background: #e74c3c; color: white; border: none; border-radius: 3px;">Clear</button>
-                </div>
-                <div>
-                    <label style="font-weight: bold;">🔍 Filter:</label>
-                    <select id="instance-filter" style="margin-left: 5px; padding: 5px;">
-                        <option value="all">All Instances</option>
-                        <option value="bookmarked">Bookmarked Only</option>
-                        <option value="tp">True Positives (Correct)</option>
-                        <option value="fp">False Positives (Wrong Pred)</option>
-                        <option value="fn">False Negatives (Missed)</option>
-                        <option value="high-Prediction Score">High Prediction Score (>0.8)</option>
-                        <option value="low-Prediction Score">Low Prediction Score (<0.5)</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-weight: bold;">📊 Analysis:</label>
-                    <button id="confusion-analysis" style="margin-left: 5px; padding: 5px 10px; background: #3498db; color: white; border: none; border-radius: 3px;">Confusion Report</button>
-                </div>
-            </div>
-        </div>
+  <div>
+    <label>👁️ View Mode:</label>
+    <select id="view_mode">
+      <option value="auto" selected>Auto (LOD)</option>
+      <option value="boxes">Boxes</option>
+      <option value="stacks">Stacks</option>
+    </select>
+  </div>
+  <br>
 
-        <!-- Enhanced Legend -->
-        <div class="legend">
-            <h4 style="margin: 0 0 10px 0; color: #333;">📖 Visualization Legend</h4>
-            <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-                <div class="legend-item">
-                    <span class="legend-color" style="background: #3498db; border: none;"></span>
-                    <strong>True Positives (TP):</strong> Correctly classified instances. Colored boxes with no border.
-                </div>
-                <div class="legend-item">
-                    <span class="legend-color" style="background: #e74c3c; border: 1px solid #333;"></span>
-                    <strong>False Positives (FP):</strong> Incorrectly classified as this class. Colored fill with border.
-                </div>
-                <div class="legend-item">
-                    <span class="legend-color" style="background: white; border: 1px solid #3498db;"></span>
-                    <strong>False Negatives (FN):</strong> Should belong to this class but missed. White fill with colored border.
-                </div>
-                <div class="legend-item">
-                    <span style="display: inline-block; width: 16px; height: 2px; background: #333; margin-right: 5px; vertical-align: middle;"></span>
-                    <strong>Prediction Score Line:</strong> Vertical baseline for reading prediction scores.
-                </div>
-                <div class="legend-item">
-                    <span style="display: inline-block; width: 16px; height: 2px; background: #ff6b35; margin-right: 5px; vertical-align: middle;"></span>
-                    <strong>Polylines:</strong> Show prediction scores across all classes (enable with toggle).
-                </div>
-            </div>
-            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; font-size: 11px; color: #666;">
-                <strong>💡 Usage:</strong> 
-                • Hover over squares to see "Ground Truth: CX, Predicted Label: CY, Prediction Score: 0.XX"
-                • Click squares to bookmark important instances
-                • Double-click for detailed analysis
-                • Toggle polylines to see confusion patterns between classes
-                • Boxes grow horizontally from the prediction score line like a bar chart
-            </div>
+  <div id="tooltip" style="position:absolute; display:none; background:white; border:1px solid #ccc; padding:6px 8px; pointer-events:none; font-size:12px; z-index:1000; box-shadow:0 2px 4px rgba(0,0,0,0.2); border-radius:4px;"></div>
+
+  <div id="multi-class-container">
+    <div id="multi-class-vis"></div>
+
+    <div id="controls" class="control-panel">
+      <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
+        <div>
+          <label style="font-weight:bold;">🔗 Parallel Coordinates:</label>
+          <button id="toggle-polylines" style="margin-left:5px; padding:5px 10px; background:#2ecc71; color:#fff; border:none; border-radius:4px;">Show</button>
+          <small style="margin-left:6px; color:#666;">Hover instances to see cross-class scores</small>
         </div>
+        <div>
+          <label style="font-weight:bold;">⭐ Bookmarks:</label>
+          <span id="bookmark-count" style="margin-left:6px; color:#666;">0 instances</span>
+          <button id="clear-bookmarks" style="margin-left:10px; padding:5px 10px; background:#e74c3c; color:#fff; border:none; border-radius:4px;">Clear</button>
+        </div>
+        <div>
+          <label style="font-weight:bold;">🔍 Filter:</label>
+          <select id="instance-filter" style="margin-left:6px; padding:5px;">
+            <option value="all">All Instances</option>
+            <option value="bookmarked">Bookmarked Only</option>
+            <option value="tp">True Positives (Correct)</option>
+            <option value="fp">False Positives (Wrong Pred)</option>
+            <option value="fn">False Negatives (Missed)</option>
+            <option value="high-Prediction Score">High Prediction Score (>0.8)</option>
+            <option value="low-Prediction Score">Low Prediction Score (<0.5)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-weight:bold;">📊 Analysis:</label>
+          <button id="confusion-analysis" style="margin-left:6px; padding:5px 10px; background:#3498db; color:#fff; border:none; border-radius:4px;">Confusion Report</button>
+        </div>
+      </div>
     </div>
 
-    <script>
-        function createClassifierSquaresVisualization(instances, classNames = null) {
-            const tooltip = d3.select("#tooltip");
-            
-            let bookmarkedInstances = new Set();
-            let polylinesVisible = false;
-            let currentFilter = "all";
-            let instanceIdCounter = 0;
-            
-            // Correctly distinguish TP, FP, FN
-            const data = instances.map(d => {
-                let match = "";
-                if (d.true_label === d.pred_label) {
-                    match = "TP";
-                } else if (d.pred_label !== d.true_label) {
-                    // FP: Predicted as this class but actually not
-                    match = "FP";
-                    // But for visualization, class_focus needs special handling, pay attention to grouping later
-                }
-                // FN: Actually this class but not predicted as this class
-                // The match for FN will be handled in grouping later
-                return {
-                    ...d,
-                    match,
-                    class_focus: d.true_label,
-                    instance_id: instanceIdCounter++,
-                    class_scores: Array.isArray(d.class_scores) ? d.class_scores : null
-                };
+    <div class="legend">
+      <h4 style="margin:0 0 10px 0; color:#333;">📖 Visualization Legend</h4>
+      <div style="display:flex; flex-wrap:wrap; gap:15px;">
+        <div class="legend-item">
+          <span class="legend-color" style="background:#3498db; border:none;"></span>
+          <strong>True Positives (TP):</strong> Colored boxes with no border.
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#e74c3c; border:1px solid #333;"></span>
+          <strong>False Positives (FP):</strong> Colored fill with border.
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:white; border:1px solid #3498db;"></span>
+          <strong>False Negatives (FN):</strong> White fill with colored border.
+        </div>
+        <div class="legend-item">
+          <span style="display:inline-block; width:16px; height:2px; background:#333; margin-right:5px; vertical-align:middle;"></span>
+          <strong>Prediction Score Line:</strong> Vertical baseline.
+        </div>
+        <div class="legend-item">
+          <span style="display:inline-block; width:16px; height:2px; background:#ff6b35; margin-right:5px; vertical-align:middle;"></span>
+          <strong>Polylines:</strong> Cross-class score profile (hover).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  function createClassifierSquaresVisualization(instances, classNames = null, opts = {}) {
+    // ---------- Config (no magic numbers) ----------
+    const cfg = {
+      svgHeight: opts.svgHeight ?? 800,
+      subplotWidth: opts.subplotWidth ?? 160,     // 每个类的宽度（含留白）
+      classOffset: 60,                            // 左右留白（类组起始偏移）
+      yAxisOffset: 45,                            // y 轴离左边的偏移
+      marginTop: 50,
+      marginBottom: 120,
+      baselineX: 25,                              // 基线在每个类子图内部的 x
+      spacing: 2,                                 // 方块间距
+      minCell: 6,                                 // Boxes 模式可读阈值（像素）
+      rowsPerBin: opts.rowsPerBin ?? 30,         // 每行最多放多少格
+      maxBoxesPerBinRender: 5000,                // 单 bin 最大渲染实例（Boxes）
+    };
+
+    const colors = d3.schemeCategory10;
+    const colorByClass = d3.scaleOrdinal(colors);
+
+    // ---------- Data enrich ----------
+    let bookmarked = new Set();
+    let polylinesVisible = false;
+    let currentFilter = "all";
+    let instanceIdCounter = 0;
+
+    const data = instances.map(d => {
+      const match = (d.true_label === d.pred_label) ? "TP" : "FP"; // FN 在可视化时按类处理
+      return {
+        ...d,
+        match,
+        class_focus: d.true_label,             // 每个类面板默认关注 GT 类
+        instance_id: instanceIdCounter++,
+        class_scores: Array.isArray(d.class_scores) ? d.class_scores : null
+      };
+    });
+
+    // classes = 所有出现过的类（真值或预测）
+    const classSet = Array.from(new Set(data.flatMap(d => [d.true_label, d.pred_label]))).sort((a,b)=>a-b);
+
+    // ---------- Helpers ----------
+    function updateBookmarkCount() {
+      document.getElementById("bookmark-count").textContent = `${bookmarked.size} instances`;
+    }
+
+    function shouldShowInstance(d) {
+      if (currentFilter === "bookmarked" && !bookmarked.has(d.instance_id)) return false;
+      if (currentFilter === "tp" && d.match !== "TP") return false;
+      if (currentFilter === "fp" && d.match !== "FP") return false;
+      if (currentFilter === "fn") {
+        // “FN”指：在该类面板里为 FN —— 运行时按类判断，这里不过滤
+      }
+      if (currentFilter === "high-Prediction Score" && d.pred_score < 0.8) return false;
+      if (currentFilter === "low-Prediction Score" && d.pred_score >= 0.5) return false;
+      return true;
+    }
+
+    function binIndexFromScore(s) { return Math.min(Math.floor(s * 10), 9); } // 0..9
+
+    // ---------- SVG ----------
+    const svgWidth = Math.max(cfg.subplotWidth * classSet.length + cfg.classOffset + cfg.yAxisOffset + 20, 1200);
+
+    const root = d3.select("#multi-class-vis").html("");
+    const svg = root.append("svg")
+      .attr("width", svgWidth)
+      .attr("height", cfg.svgHeight)
+      .attr("viewBox", `0 0 ${svgWidth} ${cfg.svgHeight}`);
+
+    const main = svg.append("g").attr("class", "main-content");
+    const polyGroup = svg.append("g").attr("class", "polyline-group");
+
+    // ---------- Scales (global) ----------
+    const yTop = cfg.marginTop;
+    const yBottom = cfg.svgHeight - cfg.marginBottom;
+
+    const yScale = d3.scaleLinear().domain([0,1]).range([yBottom, yTop]);
+    const yBin = d3.scaleBand().domain(d3.range(10)).range([yBottom, yTop]).paddingInner(0.15);
+
+    // y-axis (left, once)
+    const yAxis = d3.axisLeft(yScale).ticks(10);
+    main.append("g")
+      .attr("class", "axis")
+      .attr("transform", `translate(${cfg.yAxisOffset},0)`)
+      .call(yAxis);
+    main.append("text")
+      .text("Prediction Score")
+      .attr("x", cfg.yAxisOffset - 25)
+      .attr("y", cfg.svgHeight/2)
+      .attr("text-anchor", "middle")
+      .attr("transform", `rotate(-90, ${cfg.yAxisOffset - 25}, ${cfg.svgHeight/2})`)
+      .style("font-size","12px")
+      .style("font-weight","bold")
+      .style("fill","#333");
+
+    // per-class groups
+    const classGroups = main.selectAll("g.class")
+      .data(classSet, d=>d)
+      .join("g")
+      .attr("class","class")
+      .attr("transform", (cls, i) => `translate(${i * cfg.subplotWidth + cfg.classOffset + cfg.yAxisOffset},0)`);
+
+    // titles + metrics
+    classGroups.selectAll("text.title")
+      .data(d=>[d])
+      .join("text")
+      .attr("class","title")
+      .text(d => `Class ${d}`)
+      .attr("x", cfg.subplotWidth/2)
+      .attr("y", cfg.marginTop - 20)
+      .attr("text-anchor","middle")
+      .style("font-weight","bold")
+      .style("font-size","18px")
+      .style("fill", d => colorByClass(d));
+
+    // baseline in each class
+    classGroups.selectAll("line.baseline")
+      .data([0])
+      .join("line")
+      .attr("class","baseline")
+      .attr("x1", cfg.baselineX)
+      .attr("x2", cfg.baselineX)
+      .attr("y1", yTop)
+      .attr("y2", yBottom)
+      .attr("stroke", "#333")
+      .attr("stroke-width", 2);
+
+    // ---------- Pre-aggregation for stacks + LOD ----------
+    // 为每个类统计每个 bin 的 TP/FP/FN 数
+    const perClassBins = new Map(); // cls -> [{TP:[], FP:[], FN:[]}, ... (10 bins)]
+    classSet.forEach(cls => {
+      const bins = Array.from({length: 10}, () => ({TP:[], FP:[], FN:[]}));
+      data.forEach(d => {
+        const b = binIndexFromScore(d.pred_score);
+        if (d.true_label === cls && d.pred_label === cls) bins[b].TP.push(d);
+        else if (d.pred_label === cls && d.true_label !== cls) bins[b].FP.push(d);
+        else if (d.true_label === cls && d.pred_label !== cls) bins[b].FN.push(d);
+      });
+      perClassBins.set(cls, bins);
+    });
+
+    const allBinTotals = [];
+    perClassBins.forEach(bins => {
+      bins.forEach(bin => {
+        allBinTotals.push(bin.TP.length + bin.FP.length + bin.FN.length);
+      });
+    });
+    const maxGlobalBinTotal = Math.max(d3.max(allBinTotals) ?? 1, 1);
+
+    // ---------- Draw function with LOD ----------
+    function draw(viewMode = "auto") {
+      // for each class, make x scales (depend on subplotWidth etc.)
+      classGroups.each(function(cls){
+        const g = d3.select(this);
+        const bins = perClassBins.get(cls);
+
+        // 横向 scale（基线右侧 / 左侧镜像）
+        const rightWidth = cfg.subplotWidth - cfg.baselineX - 10;
+        const leftWidth  = cfg.baselineX - 10;
+
+        const xRight = d3.scaleBand()
+          .domain(d3.range(cfg.rowsPerBin))
+          .range([cfg.baselineX, cfg.baselineX + rightWidth])
+          .paddingInner(cfg.spacing / Math.max(1,rightWidth));
+
+        const xLeft = d3.scaleBand()
+          .domain(d3.range(cfg.rowsPerBin))
+          .range([cfg.baselineX - leftWidth, cfg.baselineX])
+          .paddingInner(cfg.spacing / Math.max(1,leftWidth));
+
+        // 条形宽度（stacks）
+        const barWidthScale = d3.scaleLinear()
+          .domain([0, maxGlobalBinTotal])
+          .range([0, rightWidth])
+          .clamp(true);
+
+        // LOD: 自动切换
+        const autoShowBoxes = (xRight.bandwidth() >= cfg.minCell) && (yBin.bandwidth() >= cfg.minCell * 1.5);
+        const showBoxes = (viewMode === "auto") ? autoShowBoxes : (viewMode === "boxes");
+
+        // ----- metrics -----
+        const TP = d3.sum(bins, bin => bin.TP.length);
+        const FP = d3.sum(bins, bin => bin.FP.length);
+        const FN = d3.sum(bins, bin => bin.FN.length);
+        const precision = TP / (TP + FP) || 0;
+        const recall = TP / (TP + FN) || 0;
+        const f1 = (2 * precision * recall) / (precision + recall) || 0;
+
+        const metrics = g.selectAll("g.metrics").data([0]).join("g").attr("class","metrics");
+        metrics.selectAll("text.counts")
+          .data([0]).join("text").attr("class","counts")
+          .text(`TP: ${TP}  FP: ${FP}  FN: ${FN}`)
+          .attr("x", cfg.subplotWidth/2).attr("y", cfg.svgHeight - 80)
+          .attr("text-anchor","middle").style("font-size","11px").style("font-weight","600").style("fill","#555");
+        metrics.selectAll("text.prf")
+          .data([0]).join("text").attr("class","prf")
+          .text(`P: ${precision.toFixed(2)}  R: ${recall.toFixed(2)}  F1: ${f1.toFixed(2)}`)
+          .attr("x", cfg.subplotWidth/2).attr("y", cfg.svgHeight - 60)
+          .attr("text-anchor","middle").style("font-size","11px").style("font-weight","600").style("fill","#555");
+
+        // ----- clear prior layers -----
+        g.selectAll("g.layer").remove();
+
+        if (showBoxes) {
+          // -------- BOXES LAYER --------
+          const layer = g.append("g").attr("class","layer boxes");
+          const items = [];
+
+          // 从高分到低分（上->下）
+          for (let visualOrder = 9; visualOrder >= 0; visualOrder--) {
+            const binIdx = visualOrder;         // 0..9
+            const binTop = yBin(binIdx);
+            const binH   = yBin.bandwidth();
+
+            // 过滤 + 排序
+            const tp = bins[binIdx].TP.filter(shouldShowInstance);
+            const fp = bins[binIdx].FP.filter(shouldShowInstance);
+            const fn = bins[binIdx].FN.filter(shouldShowInstance);
+
+            // 自下而上堆叠（row 越大 y 越小）
+            const pitchY = Math.max(cfg.minCell, xRight.bandwidth()) + cfg.spacing;
+
+            // TP → 右侧
+            tp.slice(0, cfg.maxBoxesPerBinRender).forEach((d, i) => {
+              const col = i % cfg.rowsPerBin;
+              const row = Math.floor(i / cfg.rowsPerBin);
+              items.push({
+                key: `TP-${cls}-${binIdx}-${d.instance_id}`,
+                type: "TP", d, cls, binIdx,
+                x: xRight(col),
+                y: binTop + binH - (row + 1) * pitchY,
+                w: xRight.bandwidth(), h: xRight.bandwidth()
+              });
+            });
+            // FP 接在 TP 后面 → 右侧
+            const start = Math.min(tp.length, cfg.maxBoxesPerBinRender);
+            fp.slice(0, cfg.maxBoxesPerBinRender).forEach((d, i) => {
+              const k = start + i;
+              const col = k % cfg.rowsPerBin;
+              const row = Math.floor(k / cfg.rowsPerBin);
+              items.push({
+                key: `FP-${cls}-${binIdx}-${d.instance_id}`,
+                type: "FP", d, cls, binIdx,
+                x: xRight(col),
+                y: binTop + binH - (row + 1) * pitchY,
+                w: xRight.bandwidth(), h: xRight.bandwidth()
+              });
             });
 
-            const colors = d3.schemeCategory10;
-
-            function updateBookmarkCount() {
-                document.getElementById("bookmark-count").textContent = `${bookmarkedInstances.size} instances`;
-            }
-            
-            function shouldShowInstance(dataPoint) {
-                if (currentFilter === "bookmarked" && !bookmarkedInstances.has(dataPoint.instance_id)) return false;
-                if (currentFilter === "tp" && dataPoint.match !== "TP") return false;
-                if (currentFilter === "fp" && dataPoint.match !== "FP") return false;
-                if (currentFilter === "fn" && dataPoint.match !== "FN") return false;
-                if (currentFilter === "high-Prediction Score" && dataPoint.pred_score < 0.8) return false;
-                if (currentFilter === "low-Prediction Score" && dataPoint.pred_score >= 0.5) return false;
-                return true;
-            }
-            
-            function generateConfusionReport() {
-                const confusionData = {};
-                const classStats = {};
-                
-                data.forEach(d => {
-                    if (!classStats[d.true_label]) {
-                        classStats[d.true_label] = {TP: 0, FP: 0, FN: 0, total: 0};
-                    }
-                    if (!classStats[d.pred_label]) {
-                        classStats[d.pred_label] = {TP: 0, FP: 0, FN: 0, total: 0};
-                    }
-                    
-                    classStats[d.true_label].total++;
-                    
-                    if (d.true_label === d.pred_label) {
-                        classStats[d.true_label].TP++;
-                    } else {
-                        classStats[d.true_label].FN++;
-                        classStats[d.pred_label].FP++;
-                        
-                        const confusionKey = `${d.true_label}->${d.pred_label}`;
-                        if (!confusionData[confusionKey]) {
-                            confusionData[confusionKey] = {count: 0, avgScore: 0, instances: []};
-                        }
-                        confusionData[confusionKey].count++;
-                        confusionData[confusionKey].instances.push(d);
-                    }
+            // FN → 左侧（镜像，从基线向左扩展）
+            fn.slice(0, cfg.maxBoxesPerBinRender).forEach((d, i) => {
+              const col = i % cfg.rowsPerBin;
+              const row = Math.floor(i / cfg.rowsPerBin);
+              const x = xLeft(cfg.rowsPerBin - 1 - col);
+              if (x != null) {
+                items.push({
+                  key: `FN-${cls}-${binIdx}-${d.instance_id}`,
+                  type: "FN", d, cls, binIdx,
+                  x: x,
+                  y: binTop + binH - (row + 1) * pitchY,
+                  w: xLeft.bandwidth(), h: xLeft.bandwidth()
                 });
-                
-                Object.keys(confusionData).forEach(key => {
-                    const confusion = confusionData[key];
-                    confusion.avgScore = confusion.instances.reduce((sum, inst) => sum + inst.pred_score, 0) / confusion.count;
-                });
-                
-                let reportHtml = `
-                  <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                              background: white; border: 2px solid #333; border-radius: 8px; padding: 20px; 
-                              box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 10000; max-width: 600px; max-height: 500px; overflow-y: auto;">
-                    <h3 style="margin-top: 0; color: #333;">📊 Confusion Analysis Report</h3>
-                    
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
-                      <h4 style="margin: 0 0 10px 0;">Class Performance Summary</h4>
-                      <div style="display: grid; grid-template-columns: auto auto auto auto auto; gap: 10px; font-size: 12px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 5px;">
-                        <div>Class</div><div>Precision</div><div>Recall</div><div>F1-Score</div><div>Support</div>
-                      </div>`;
-                
-                Object.keys(classStats).sort((a,b) => a-b).forEach(cls => {
-                    const stats = classStats[cls];
-                    const precision = stats.TP / (stats.TP + stats.FP) || 0;
-                    const recall = stats.TP / (stats.TP + stats.FN) || 0;
-                    const f1 = 2 * precision * recall / (precision + recall) || 0;
-                    
-                    reportHtml += `
-                      <div style="display: grid; grid-template-columns: auto auto auto auto auto; gap: 10px; font-size: 12px; padding: 3px 0;">
-                        <div>C${cls}</div>
-                        <div>${precision.toFixed(3)}</div>
-                        <div>${recall.toFixed(3)}</div>
-                        <div>${f1.toFixed(3)}</div>
-                        <div>${stats.total}</div>
-                      </div>`;
-                });
-                
-                reportHtml += `
-                      </div>
-                    
-                    <div style="background: #fff3cd; padding: 15px; border-radius: 4px; margin-top: 15px;">
-                      <h4 style="margin: 0 0 10px 0; color: #856404;">⚠️ Top Confusion Patterns</h4>`;
-                
-                const topConfusions = Object.entries(confusionData)
-                  .sort(([,a], [,b]) => b.count - a.count)
-                  .slice(0, 5);
-                
-                topConfusions.forEach(([pattern, data]) => {
-                    const [from, to] = pattern.split('->');
-                    reportHtml += `
-                      <div style="margin: 5px 0; padding: 8px; background: rgba(255,193,7,0.1); border-left: 3px solid #ffc107; font-size: 12px;">
-                        <strong>C${from} → C${to}</strong>: ${data.count} instances (avg prediction score: ${data.avgScore.toFixed(3)})
-                      </div>`;
-                });
-                
-                reportHtml += `
-                      </div>
-                    
-                    <div style="text-align: center; margin-top: 20px;">
-                      <button onclick="this.parentElement.parentElement.remove()" 
-                              style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        Close Report
-                      </button>
-                    </div>
-                  </div>`;
-                
-                document.body.insertAdjacentHTML('beforeend', reportHtml);
-            }
-            
-            function drawPolylines(svg, data, classSet, subplotWidth) {
-                if (!polylinesVisible) return;
-                
-                const polylineGroup = svg.select(".polyline-group");
-                if (polylineGroup.empty()) {
-                    svg.append("g").attr("class", "polyline-group");
-                }
-                
-                svg.select(".polyline-group").selectAll("*").remove();
-                
-                // Get the same yScale as the main image
-                const svgHeight = +svg.attr("height") || 800;
-                const yScale = d3.scaleLinear().domain([0, 1]).range([svgHeight - 120, 70]);
-                const enhancedData = data.map(d => ({
-                        ...d,
-                        allClassScores: d.class_scores
-                    }));
-                svg.node().__enhancedData = enhancedData;
-            }
-            
-            function showInstancePolyline(svg, instance, classSet, subplotWidth) {
-                if (!instance.allClassScores) return;
-                
-                const polylineGroup = svg.select(".polyline-group");
-                
-                polylineGroup.selectAll(".instance-polyline").remove();
-                polylineGroup.selectAll(".score-dot").remove();
-                
-                // Unified yScale display
-                const svgHeight = +svg.attr("height") || 800;
-                const yScale = d3.scaleLinear().domain([0, 1]).range([svgHeight - 120, 70]);
-                const baselineX = 25; // Consistent with the main draw
-                const groupOffset = 60 + 45; // classOffset + yAxisOffset
-                const scorePoints = instance.allClassScores.map((score, idx) => {
-                    // x-axis: y-axis line of each class
-                    const x = idx * subplotWidth + groupOffset + baselineX;
-                    const y = yScale(score) + 50;
-                    return { x, y, score, classIdx: classSet[idx], isTrue: classSet[idx] === instance.true_label, isPred: classSet[idx] === instance.pred_label };
-                });
-                const line = d3.line()
-                    .x(d => d.x)
-                    .y(d => d.y)
-                    .curve(d3.curveLinear);
-                polylineGroup.append("path")
-                    .datum(scorePoints)
-                    .attr("class", "instance-polyline")
-                    .attr("d", line)
-                    .attr("stroke", "#ff6b35")
-                    .attr("stroke-width", 2)
-                    .attr("fill", "none")
-                    .attr("opacity", 0.8)
-                    .style("pointer-events", "none");
-                polylineGroup.selectAll(".score-dot")
-                    .data(scorePoints)
-                    .enter()
-                    .append("circle")
-                    .attr("class", "score-dot")
-                    .attr("cx", d => d.x)
-                    .attr("cy", d => d.y)
-                    .attr("r", d => d.isPred ? 5 : (d.isTrue ? 4 : 3))
-                    .attr("fill", d => {
-                        if (d.isPred) return "#ff6b35";
-                        if (d.isTrue) return "#2ecc71";
-                        return "#95a5a6";
-                    })
-                    .attr("stroke", "#fff")
-                    .attr("stroke-width", 1)
-                    .attr("opacity", 0.9)
-                    .style("pointer-events", "none");
-            }
-            
-            function hideInstancePolyline(svg) {
-                const polylineGroup = svg.select(".polyline-group");
-                polylineGroup.selectAll(".instance-polyline").remove();
-                polylineGroup.selectAll(".score-dot").remove();
-            }
-
-            function draw(view_mode) {
-                d3.select("#multi-class-vis").html("");
-
-                                // Dynamically adjust boxSize, automatically shrink when data volume is large
-                                                const byBinPreview = Array.from({length: 10}, () => ({TP: [], FP: [], FN: []}));
-                                                data.forEach(d => {
-                                                        const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                                                        if (d.match === "TP") byBinPreview[bin].TP.push(d);
-                                                        else if (d.match === "FP") byBinPreview[bin].FP.push(d);
-                                                        else if (d.match === "FN") byBinPreview[bin].FN.push(d);
-                                                });
-                                                const maxInstances = Math.max(
-                                                    ...byBinPreview.map(binData => binData.TP.length + binData.FP.length + binData.FN.length)
-                                                );
-                                                // Automatically adjust boxSize, rowsPerBin, subplotWidth
-                                                const boxSize = Math.max(1, 10 - Math.floor(maxInstances / 100)); // 最小1，最大6
-                                                const spacing = 2;
-                                                // Calculate the maximum number of boxes for all classes, set rowsPerBin and subplotWidth uniformly
-                                                const binMaxCounts = byBinPreview.map(binData => binData.TP.length + binData.FP.length + binData.FN.length);
-                                                const globalMaxBoxes = Math.max(10, ...binMaxCounts);
-                                                // Set the maximum limit for rowsPerBin to prevent it from being too wide
-                                                const rowsPerBin = Math.min(Math.max(10, globalMaxBoxes), 50); // 最多50列
-                                                // Set subplotWidth uniformly to prevent any class area from being too wide
-                                                const subplotWidth = Math.min(Math.max(100, boxSize * rowsPerBin + spacing * (rowsPerBin - 1) + 60), 150); // 最宽150
-                const binHeight = 0.1;
-                const maxBin = 10;
-                const MAX_BOX_PER_BIN = 20; //  Control the max number of boxes per bin
-                const classSet = [...new Set(data.map(d => d.class_focus))].sort((a, b) => a - b);
-                const svgHeight = 800;     
-                // Y-axis overall left shift (original +150, now +60)
-
-
-                // Move the y-axis to the far left, shift all classes to the right
-                const yAxisOffset = 45; // Distance from the left for the y-axis, shift overall left
-                const classOffset = 60; // Distance for the class to shift right
-                const svgWidth = Math.max(subplotWidth * classSet.length + classOffset + yAxisOffset + 20, 1500);
-
-                const svg = d3.select("#multi-class-vis").append("svg")
-                    .attr("width", svgWidth)
-                    .attr("height", svgHeight)
-                    .attr("viewBox", `0 0 ${svgWidth} ${svgHeight}`)
-                    .style("max-width", "none")
-                    .style("max-height", "none")
-                    .style("width", svgWidth + "px")
-                    .style("height", svgHeight + "px")
-                    .style("display", "block")
-                    .style("background-color", "white")
-                    .style("border-radius", "8px")
-                    .style("box-shadow", "0 4px 8px rgba(0,0,0,0.1)");
-
-                const mainContent = svg.append("g").attr("class", "main-content");
-                svg.append("g").attr("class", "polyline-group");
-
-                // Shift group to the right, add clipPath for each class to prevent overflow
-
-                const group = mainContent.selectAll("g")
-                    .data(classSet)
-                    .enter().append("g")
-                    .attr("transform", (d, i) => `translate(${i * subplotWidth + classOffset + yAxisOffset}, 50)`)
-
-                // Add clipPath for each class subplot to prevent bar overflow to the next class
-                svg.append("defs").selectAll("clipPath")
-                    .data(classSet)
-                    .enter().append("clipPath")
-                    .attr("id", (d, i) => `clip-class-${i}`)
-                    .append("rect")
-                    .attr("x", 0)
-                    .attr("y", 0)
-                    .attr("width", subplotWidth)
-                    .attr("height", svgHeight - 120 - 70); // Only clip the main content area
-
-                // Add Category Title with class color
-                group.append("text")
-                    .text(d => `Class ${d}`)
-                    .attr("x", subplotWidth/2)
-                    .attr("y", -15)
-                    .attr("text-anchor", "middle")
-                    .style("font-weight", "bold")
-                    .style("font-size", "20px")  
-                    .style("fill", d => colors[d % colors.length]);
-
-                // Prediction Score on the left side of the y-axis
-                mainContent.append("text")
-                    .text("Prediction Score")
-                    .attr("x", yAxisOffset - 25)
-                    .attr("y", svgHeight/2)
-                    .attr("text-anchor", "middle")
-                    .attr("transform", `rotate(-90, ${yAxisOffset - 25}, ${svgHeight/2})`)
-                    .style("font-size", "13px")  
-                    .style("font-weight", "bold")
-                    .style("fill", "#333");
-
-                // 统计所有 class 的所有 bin 的实例数
-                let allBinTotals = [];
-                classSet.forEach(cls => {
-                    const byBin = Array.from({length: maxBin}, () => ({TP: [], FP: [], FN: []}));
-                    data.forEach(d => {
-                        if (d.true_label === cls && d.pred_label === cls) {
-                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            byBin[bin].TP.push(d);
-                        } else if (d.pred_label === cls && d.true_label !== cls) {
-                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            byBin[bin].FP.push(d);
-                        } else if (d.true_label === cls && d.pred_label !== cls) {
-                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            byBin[bin].FN.push(d);
-                        }
-                    });
-                    byBin.forEach(binData => {
-                        const count = binData.TP.length + binData.FP.length + binData.FN.length;
-                        allBinTotals.push(count);
-                    });
+              }
             });
-                const maxGlobalBinTotal = Math.max(...allBinTotals, 1);
+          }
 
-                group.each(function(cls, classIdx) {
-                    const g = d3.select(this);
-                    // Y-axis overall left shift (original 50, now 25)
-                    const baselineX = 25;
-                    const filtered = data.filter(d => d.class_focus === cls);
+          // --- draw with selection.join ---
+          const rects = layer.selectAll("rect.instance")
+            .data(items, d => d.key)
+            .join(
+              enter => enter.append("rect")
+                           .attr("class","instance")
+                           .attr("rx", 1.5).attr("ry", 1.5)
+                           .attr("x", d=>d.x).attr("y", d=>d.y)
+                           .attr("width", d=>d.w).attr("height", d=>d.h)
+                           .style("cursor","pointer"),
+              update => update
+                         .attr("x", d=>d.x).attr("y", d=>d.y)
+                         .attr("width", d=>d.w).attr("height", d=>d.h),
+              exit => exit.remove()
+            )
+            .style("opacity", d => bookmarked.has(d.d.instance_id) ? 1 : 0.85)
+            .attr("fill", d => {
+              if (d.type === "FN") return "white";
+              return colorByClass(d.type === "TP" ? d.d.true_label : d.d.true_label);
+            })
+            .attr("stroke", d => {
+              if (bookmarked.has(d.d.instance_id)) return "#ff6b6b";
+              if (d.type === "FN") return colorByClass(d.d.pred_label);
+              if (d.type === "FP") return "#000";
+              return "none";
+            })
+            .attr("stroke-width", d => (bookmarked.has(d.d.instance_id) ? 2.5 : (d.type === "FP" || d.type === "FN") ? 1.2 : 0));
 
-                    const stats = {TP: 0, FP: 0, FN: 0};
-                    filtered.forEach(d => {
-                        if (d.match === "TP") stats.TP++;
-                        else stats.FN++;
-                    });
-                    data.forEach(d => {
-                        if (d.pred_label === cls && d.true_label !== cls) stats.FP++;
-                    });
-
-                    const precision = stats.TP / (stats.TP + stats.FP) || 0;
-                    const recall = stats.TP / (stats.TP + stats.FN) || 0;
-                    const f1 = 2 * precision * recall / (precision + recall) || 0;
-                    
-                    g.append("text")
-                        .text(`TP: ${stats.TP} FP: ${stats.FP} FN: ${stats.FN}`)
-                        .attr("x", subplotWidth/2)
-                        .attr("y", svgHeight - 80)
-                        .attr("text-anchor", "middle")
-                        .style("font-size", "10px")  
-                        .style("font-weight", "bold")
-                        .style("fill", "#555");
-                        
-                    g.append("text")
-                        .text(`P: ${precision.toFixed(2)} R: ${recall.toFixed(2)} F1: ${f1.toFixed(2)}`)
-                        .attr("x", subplotWidth/2)
-                        .attr("y", svgHeight - 60)
-                        .attr("text-anchor", "middle")
-                        .style("font-size", "10px")  
-                        .style("font-weight", "bold")
-                        .style("fill", "#555");
-
-                    // Add Y-axis scale (only in the first subplot)
-
-                    // Only draw y-axis on the far left
-                    if (classIdx === 0) {
-                        const yScale = d3.scaleLinear()
-                            .domain([0, 1])
-                            .range([svgHeight - 120, 70]); 
-                        const yAxis = d3.axisLeft(yScale).ticks(10);
-                        // Add y-axis to mainContent and shift down by 50 pixels
-                        mainContent.append("g")
-                            .attr("transform", `translate(${yAxisOffset}, 50)`)
-                            .call(yAxis)
-                            .selectAll("text")
-                            .style("font-size", "12px");
-                    }
-
-                    // Draw vertical prediction score lines for ALL classes - this is the baseline for boxes
-                    const predScoreLine = g.append("line")
-                        .attr("x1", baselineX)
-                        .attr("x2", baselineX)
-                        .attr("y1", 70)
-                        .attr("y2", svgHeight - 120)
-                        .attr("stroke", "#333")
-                        .attr("stroke-width", 2);
-
-                    // First group
-                    const byBin = Array.from({length: maxBin}, () => ({TP: [], FP: [], FN: []}));
-                    data.forEach(d => {
-                        // TP: Correct prediction
-                        if (d.true_label === cls && d.pred_label === cls) {
-                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            byBin[bin].TP.push(d);
-                        }
-                        // FP: Predicted as this class but actually not
-                        else if (d.pred_label === cls && d.true_label !== cls) {
-                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            byBin[bin].FP.push(d);
-                        }
-                        // FN: Actually this class but not predicted as this class
-                        else if (d.true_label === cls && d.pred_label !== cls) {
-                            const bin = Math.min(Math.floor(d.pred_score * 10), 9);
-                            byBin[bin].FN.push(d);
-                        }
-                    });
-
-                    // Draw TP, FP, FN, show hints when overflow
-                    // Stack mode: high score bins on top, low score bins on bottom, and each bin has the same height
-                    let binCount = maxBin;
-                    let binHeight = boxSize;
-                    let binSpacing = spacing;
-                    let totalHeight = binCount * binHeight + (binCount - 1) * binSpacing;
-                    let firstBinY = 70; // Distance from the top margin, aligned with the y-axis
-                    for (let i = 0; i < byBin.length; i++) {
-                        // Reverse traversal, i=0 is the highest score bin (0.9-1.0), i=9 is the lowest score bin (0-0.1)
-                        const binData = byBin[byBin.length - 1 - i];
-                        let y_base, binY;
-                        if (view_mode === "stacks") {
-                            binY =  (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
-                            y_base = binY;
-                        } else {
-                            binY = null;
-                            y_base = (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
-                        }
-
-                        // TP horizontal bar
-                        const tpFiltered = binData.TP.filter(d => shouldShowInstance(d));
-                        const tpSorted = tpFiltered.slice().sort((a, b) => a.score - b.score);
-                        const tpToShow = tpSorted.slice(0, MAX_BOX_PER_BIN);
-                        const tpOverflow = tpFiltered.length > MAX_BOX_PER_BIN ? tpFiltered.length - MAX_BOX_PER_BIN : 0;
-                        const fnFiltered = binData.FN.filter(d => shouldShowInstance(d));
-                        const fnCount = fnFiltered.length;
-                        if (view_mode === "stacks") {
-                            // 重新绘制stack模式：每个bin只画一个横向分段条，宽度按比例，内部按FN/TP/FP分段
-                            // 统计每个bin的TP/FP/FN数量
-                            const tpCount = tpFiltered.length;
-                            const fpCount = binData.FP.filter(d => shouldShowInstance(d)).length;
-                            // FN 计数统一用 fnFiltered.length
-                            // const fnCount = binData.FN.filter(d => shouldShowInstance(d)).length;
-                            console.log('bin', i, 'TP:', tpCount, 'FP:', fpCount, 'FN:', fnCount, 'total:', tpCount + fpCount + fnCount);
-                            const totalCount = tpCount + fpCount + fnCount;
-
-                            // 横向条最大宽度
-                            const barMaxWidth = subplotWidth - baselineX - 10;
-                            // 当前bin条宽度
-                            const barWidth = totalCount > 0 ? (totalCount / maxGlobalBinTotal) * barMaxWidth : 0;
-                            const barY = (svgHeight - 170) - ((byBin.length - 1 - i) * (svgHeight - 250) / 10);
-                            // 按FN/TP/FP比例分段
-                            const fnRatio = totalCount > 0 ? fnCount / totalCount : 0;
-                            const tpRatio = totalCount > 0 ? tpCount / totalCount : 0;
-                            const fpRatio = totalCount > 0 ? fpCount / totalCount : 0;
-
-                            // 只画一个横向条，内部分段
-                            let xStart = baselineX;
-                            // FN segment
-                            const fnWidth = barWidth * fnRatio;
-                            if (fnWidth > 0) {
-                            g.append("rect")
-                                .attr("x", xStart)
-                                .attr("y", barY)
-                                .attr("width", fnWidth)
-                                .attr("height", 16)
-                                .attr("fill", "white")
-                                .attr("stroke", colors[binData.FN.length > 0 ? binData.FN[0].pred_label % colors.length : 0])
-                                .attr("stroke-width", 1.5)
-                                .style("opacity", 0.8)
-                                .attr("class", `fn-bar-rect bin-idx-${i}`);
-                                xStart += fnWidth;
-                                }
-                            // TP segment
-                            const tpWidth = barWidth * tpRatio;
-                            if (tpWidth > 0) {
-                            g.append("rect")
-                                .attr("x", xStart)
-                                .attr("y", barY)
-                                .attr("width", tpWidth)
-                                .attr("height", 16)
-                                .attr("fill", colors[binData.TP.length > 0 ? binData.TP[0].true_label % colors.length : 0])
-                                .attr("stroke", "none")
-                                .style("opacity", 0.8)
-                                .attr("class", `tp-bar-rect bin-idx-${i}`);
-                                xStart += tpWidth;
-                            }
-                            // FP segment
-                            const fpWidth = barWidth * fpRatio;
-                            if (fpWidth > 0) {
-                            g.append("rect")
-                                .attr("x", xStart)
-                                .attr("y", barY)
-                                .attr("width", fpWidth)
-                                .attr("height", 16)
-                                .attr("fill", colors[binData.FP.length > 0 ? binData.FP[0].true_label % colors.length : 0])
-                                .attr("stroke", "black")
-                                .attr("stroke-width", 1.5)
-                                .style("fill-opacity", 0.6)
-                                .style("opacity", 0.8)
-                                .attr("class", `fp-bar-rect bin-idx-${i}`);
-                                xStart += fpWidth;
-                            }
-                            
-                        } else {
-                            tpToShow.forEach((dataPoint, i) => {
-                                let col = i % rowsPerBin;
-                                let row = Math.floor(i / rowsPerBin);
-                                let x = baselineX + col * (boxSize + spacing);
-                                // Limit x so it does not exceed subplotWidth - boxSize - 10
-                                if (x > subplotWidth - boxSize - 10) {
-                                    col = 0;
-                                    row += 1;
-                                    x = baselineX;
-                                }
-                                const y = y_base - row * (boxSize + spacing);
-                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                                g.append("rect")
-                                    .datum({...dataPoint, match: "TP"})
-                                    .attr("x", x)
-                                    .attr("y", y)
-                                    .attr("width", boxSize)
-                                    .attr("height", boxSize)
-                                    .attr("fill", colors[dataPoint.true_label % colors.length])
-                                    .attr("stroke", isBookmarked ? "#ff6b6b" : "none")
-                                    .attr("stroke-width", isBookmarked ? 3 : 0)
-                                    .style("opacity", isBookmarked ? 1 : 0.8)
-                                    .style("cursor", "pointer")
-                                    .attr("class", `instance-${dataPoint.instance_id}`);
-                            });
-                        }
-                        if (tpOverflow > 0) {
-                            let overflowX = baselineX + tpToShow.length * (boxSize + spacing) + 8;
-                            if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
-                            const overflowY = y_base - boxSize - 8; // Top right corner
-                            g.append("text")
-                                .text(`>>> +${tpOverflow}`)
-                                .attr("x", overflowX)
-                                .attr("y", overflowY)
-                                .attr("fill", colors[tpFiltered.length > 0 ? tpFiltered[0].true_label % colors.length : 0])
-                                .style("font-size", "13px")
-                                .style("font-weight", "bold")
-                                .style("cursor", "pointer")
-                                .style("background", "#fffbe6")
-                                .attr("class", "overflow-tip overflow-tip-tp")
-                                .on("mouseover", function(event) {
-                                    showOverflowTooltip(event, tpFiltered.slice(MAX_BOX_PER_BIN), "TP");
-                                })
-                                .on("mouseout", function() {
-                                    hideOverflowTooltip();
-                                });
-                        }
-
-                        // FP follows TP
-                        const fpFiltered = binData.FP.filter(d => shouldShowInstance({...d}));
-                        const fpSorted = fpFiltered.slice().sort((a, b) => a.score - b.score);
-                        const fpToShow = fpSorted.slice(0, MAX_BOX_PER_BIN);
-                        const fpOverflow = fpFiltered.length > MAX_BOX_PER_BIN ? fpFiltered.length - MAX_BOX_PER_BIN : 0;
-                        if (view_mode === "stacks") {
-                            // In stack mode, boxes are not drawn, only the horizontal bar is drawn above
-                            // The bar has been drawn above, no need to draw boxes here
-                            
-                        } else {
-                // Bind stack bar hover events (draw last)
-                if (view_mode === "stacks") {
-                    svg.selectAll('.tp-bar-rect').on("mouseover", function(event) {
-                        const className = d3.select(this).attr("class");
-                        const binIdx = parseInt(className.match(/bin-idx-(\d+)/)[1]);
-                        const count = d3.select(this).attr("width");
-                        const tooltipText = `TP bin ${binIdx}: ${Math.round(parseFloat(count)/boxSize)} instances\nScore range: ${(binIdx/10).toFixed(1)} - ${((binIdx+1)/10).toFixed(1)}`;
-                        showBarTooltip(event, tooltipText);
-                    }).on("mousemove", function(event) {
-                        moveBarTooltip(event);
-                    }).on("mouseout", function() {
-                        hideBarTooltip();
-                    });
-                    svg.selectAll('.fp-bar-rect').on("mouseover", function(event) {
-                        const className = d3.select(this).attr("class");
-                        const binIdx = parseInt(className.match(/bin-idx-(\d+)/)[1]);
-                        const count = d3.select(this).attr("width");
-                        const tooltipText = `FP bin ${binIdx}: ${Math.round(parseFloat(count)/boxSize)} instances\nScore range: ${(binIdx/10).toFixed(1)} - ${((binIdx+1)/10).toFixed(1)}`;
-                        showBarTooltip(event, tooltipText);
-                    }).on("mousemove", function(event) {
-                        moveBarTooltip(event);
-                    }).on("mouseout", function() {
-                        hideBarTooltip();
-                    });
-                }
-        // Stack mode bar tooltip
-        function showBarTooltip(event, text) {
-            let tooltip = document.getElementById("bar-tooltip");
-            if (!tooltip) {
-                tooltip = document.createElement("div");
-                tooltip.id = "bar-tooltip";
-                tooltip.style.position = "fixed";
-                tooltip.style.zIndex = 9999;
-                tooltip.style.background = "#fffbe6";
-                tooltip.style.border = "2px solid #ff6b35";
-                tooltip.style.borderRadius = "6px";
-                tooltip.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-                tooltip.style.padding = "8px 14px";
-                tooltip.style.fontSize = "13px";
-                tooltip.style.pointerEvents = "none";
-                document.body.appendChild(tooltip);
-            }
-            tooltip.textContent = text;
-            tooltip.style.display = "block";
-            moveBarTooltip(event);
-        }
-
-        function moveBarTooltip(event) {
-            const tooltip = document.getElementById("bar-tooltip");
-            if (tooltip) {
-                tooltip.style.left = (event.clientX + 18) + "px";
-                tooltip.style.top = (event.clientY - 10) + "px";
-            }
-        }
-
-        function hideBarTooltip() {
-            const tooltip = document.getElementById("bar-tooltip");
-            if (tooltip) tooltip.style.display = "none";
-        }
-                            fpToShow.forEach((dataPoint, i) => {
-                                let col = i % rowsPerBin;
-                                let row = Math.floor(i / rowsPerBin);
-                                let x = baselineX + (tpToShow.length + col) * (boxSize + spacing);
-                                // Limit x so it does not exceed subplotWidth - boxSize - 10
-                                if (x > subplotWidth - boxSize - 10) {
-                                    col = 0;
-                                    row += 1;
-                                    x = baselineX + tpToShow.length * (boxSize + spacing);
-                                }
-                                const y = y_base - row * (boxSize + spacing);
-                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                                g.append("rect")
-                                    .datum({...dataPoint, match: "FP"})
-                                    .attr("x", x)
-                                    .attr("y", y)
-                                    .attr("width", boxSize)
-                                    .attr("height", boxSize)
-                                    .attr("fill", colors[dataPoint.true_label % colors.length])
-                                    .attr("stroke", isBookmarked ? "#ff6b6b" : "black")
-                                    .attr("stroke-width", isBookmarked ? 3 : 1.5)
-                                    .style("fill-opacity", 0.6)
-                                    .style("opacity", isBookmarked ? 1 : 0.8)
-                                    .style("cursor", "pointer")
-                                    .attr("class", `instance-${dataPoint.instance_id}`);
-                            });
-                        }
-                        if (fpOverflow > 0) {
-                            let overflowX = baselineX + (tpCount + fpToShow.length) * (boxSize + spacing) + 8;
-                            if (overflowX > subplotWidth - 40) overflowX = subplotWidth - 40;
-                            const overflowY = y_base - boxSize - 8;
-                            g.append("text")
-                                .text(`>>> +${fpOverflow}`)
-                                .attr("x", overflowX)
-                                .attr("y", overflowY)
-                                .attr("fill", colors[fpFiltered.length > 0 ? fpFiltered[0].true_label % colors.length : 0])
-                                .style("font-size", "13px")
-                                .style("font-weight", "bold")
-                                .style("cursor", "pointer")
-                                .style("background", "#fffbe6")
-                                .attr("class", "overflow-tip overflow-tip-fp")
-                                .on("mouseover", function(event) {
-                                    showOverflowTooltip(event, fpFiltered.slice(MAX_BOX_PER_BIN), "FP");
-                                })
-                                .on("mouseout", function() {
-                                    hideOverflowTooltip();
-                                });
-                        }
-
-                        // FN on the left, grows right to left
-                        if (view_mode !== "stacks") {
-                            const fnFiltered = binData.FN.filter(d => shouldShowInstance({...d}));
-                            const fnToShow = fnFiltered.slice(0, MAX_BOX_PER_BIN);
-                            const fnOverflow = fnFiltered.length > MAX_BOX_PER_BIN ? fnFiltered.length - MAX_BOX_PER_BIN : 0;
-                            fnToShow.forEach((dataPoint, i) => {
-                                let col = i % rowsPerBin;
-                                let row = Math.floor(i / rowsPerBin);
-                                let x = baselineX - (col + 1) * (boxSize + spacing);
-                                const y = y_base - row * (boxSize + spacing);
-                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                                // If x < 0, it means it exceeds the left boundary, do not display the box
-                                if (x >= 0) {
-                                    g.append("rect")
-                                        .datum({...dataPoint, match: "FN"})
-                                        .attr("x", x)
-                                        .attr("y", y)
-                                        .attr("width", boxSize)
-                                        .attr("height", boxSize)
-                                        .attr("fill", "white")
-                                        .attr("stroke", isBookmarked ? "#ff6b6b" : colors[dataPoint.pred_label % colors.length])
-                                        .attr("stroke-width", isBookmarked ? 3 : 1.5)
-                                        .style("opacity", isBookmarked ? 1 : 0.8)
-                                        .style("cursor", "pointer")
-                                        .attr("class", `instance-${dataPoint.instance_id}`);
-                                }
-                            });
-                            if (fnOverflow > 0) {
-                                // Automatically position to the left of the actual leftmost FN box
-                                let minX = null;
-                                fnToShow.forEach((dataPoint, i) => {
-                                    let col = i % rowsPerBin;
-                                    let x = baselineX - (col + 1) * (boxSize + spacing);
-                                    if (minX === null || (x < minX && x >= 0)) minX = x;
-                                });
-                                // If no box is displayed, fall back to theoretical position
-                                if (minX === null) {
-                                    minX = baselineX - (fnToShow.length) * (boxSize + spacing);
-                                }
-                                const overflowX = minX - boxSize - 40; // Move further left by 40px to avoid being close to the line
-                                const overflowY = y_base - 2;
-                                g.append("text")
-                                    .text(`<<< +${fnOverflow}`)
-                                    .attr("x", overflowX)
-                                    .attr("y", overflowY)
-                                    .attr("fill", colors[fnFiltered.length > 0 ? fnFiltered[0].pred_label % colors.length : 0])
-                                    .style("font-size", "13px")
-                                    .style("font-weight", "bold")
-                                    .style("cursor", "pointer")
-                                    .style("background", "#fffbe6")
-                                    .attr("class", "overflow-tip overflow-tip-fn")
-                                    .on("mouseover", function(event) {
-                                        showOverflowTooltip(event, fnFiltered.slice(MAX_BOX_PER_BIN), "FN");
-                                    })
-                                    .on("mouseout", function() {
-                                        hideOverflowTooltip();
-                                    });
-                            }
-                        }
-        // Overflow tooltip
-        function showOverflowTooltip(event, overflowData, type) {
-            hideOverflowTooltip();
-            if (!overflowData || overflowData.length === 0) return;
-            const maxShow = 20;
-            const html = `
-                <div style="max-width:320px; max-height:260px; overflow-y:auto; font-size:12px; background:#fffbe6; border:2px solid #ff6b35; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:10px;">
-                    <b>Overflow of ${type} instances (only showing the first ${maxShow}）</b><br>
-                    <ul style='margin:6px 0 0 0; padding:0; list-style:none;'>
-                        ${overflowData.slice(0,maxShow).map(d=>`<li style='margin-bottom:2px;'>ID:${d.instance_id} GT:C${d.true_label} Pred:C${d.pred_label} Score:${d.pred_score.toFixed(2)}</li>`).join('')}
-                    </ul>
-                    ${overflowData.length > maxShow ? `<div style='color:#e67e22;'>...${overflowData.length}bar</div>` : ''}
-                </div>
-            `;
-            let tooltip = document.getElementById("overflow-tooltip");
-            if (!tooltip) {
-                tooltip = document.createElement("div");
-                tooltip.id = "overflow-tooltip";
-                tooltip.style.position = "fixed";
-                tooltip.style.zIndex = 9999;
-                document.body.appendChild(tooltip);
-            }
-            tooltip.innerHTML = html;
-            tooltip.style.display = "block";
-            const mouseX = event.clientX;
-            const mouseY = event.clientY;
-            // FN overflow prompts you to move closer to the mouse
-            let leftOffset = type === "FN" ? 5 : 20;
-            tooltip.style.left = (mouseX + leftOffset) + "px";
-            tooltip.style.top = (mouseY - 10) + "px";
-        }
-
-        function hideOverflowTooltip() {
-            const tooltip = document.getElementById("overflow-tooltip");
-            if (tooltip) tooltip.style.display = "none";
-        }
-                    }
-                });
-                
-                const svgTooltip = svg.append("g")
-                    .attr("class", "tooltip-group")
-                    .style("display", "none")
-                    .style("pointer-events", "none");
-                    
-                svgTooltip.append("rect")
-                    .attr("class", "tooltip-bg")
-                    .attr("fill", "white")
-                    .attr("stroke", "#ccc")
-                    .attr("stroke-width", 1)
-                    .attr("rx", 3)
-                    .style("filter", "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))");
-                    
-                svgTooltip.append("text")
-                    .attr("class", "tooltip-text")
-                    .attr("fill", "black")
-                    .style("font-size", "12px")
-                    .attr("x", 5)
-                    .attr("y", 15);
-
-                svg.selectAll("rect").each(function() {
-                    const rect = d3.select(this);
-                    const dataPoint = rect.datum();
-                    if (dataPoint && dataPoint.true_label !== undefined) {
-                        rect
-                            .on("mouseover", function(event) {
-                                const isBookmarked = bookmarkedInstances.has(dataPoint.instance_id);
-                                const bookmarkStatus = isBookmarked ? "⭐ " : "";
-                                
-                                // Enhanced tooltip text with clear labels
-                                const tooltipText = `${bookmarkStatus}Ground Truth: C${dataPoint.true_label}, Predicted Label: C${dataPoint.pred_label}, Prediction Score: ${dataPoint.pred_score.toFixed(2)}`;
-                                const textWidth = tooltipText.length * 7;
-                                
-                                svgTooltip.select(".tooltip-text").text(tooltipText);
-                                svgTooltip.select(".tooltip-bg")
-                                    .attr("width", textWidth + 10)
-                                    .attr("height", 20);
-                                svgTooltip.style("display", "block");
-                                
-                                if (polylinesVisible) {
-                                    const enhancedData = svg.node().__enhancedData || [];
-                                    const enhancedInstance = enhancedData.find(d => d.instance_id === dataPoint.instance_id);
-                                    
-                                    if (enhancedInstance) {
-                                        showInstancePolyline(svg, enhancedInstance, classSet, subplotWidth);
-                                    }
-                                }
-                            })
-                            .on("mousemove", function(event) {
-                                const [mouseX, mouseY] = d3.pointer(event, svg.node());
-                                svgTooltip.attr("transform", `translate(${mouseX + 15}, ${Math.max(mouseY - 35, 5)})`);
-                            })
-                            .on("mouseout", function() {
-                                svgTooltip.style("display", "none");
-                                
-                                if (polylinesVisible) {
-                                    hideInstancePolyline(svg);
-                                }
-                            })
-                            .on("click", function(event) {
-                                event.stopPropagation();
-                                
-                                if (bookmarkedInstances.has(dataPoint.instance_id)) {
-                                    bookmarkedInstances.delete(dataPoint.instance_id);
-                                } else {
-                                    bookmarkedInstances.add(dataPoint.instance_id);
-                                }
-                                updateBookmarkCount();
-                                draw(view_mode);
-                            })
-                            .on("dblclick", function(event) {
-                                event.stopPropagation();
-                                showEnhancedInstanceDetails(dataPoint, svg.node().__enhancedData);
-                            });
-                    }
-                });
-
-                drawPolylines(svg, data, classSet, subplotWidth);
-            }
-
-            function showEnhancedInstanceDetails(dataPoint, enhancedData) {
-                const enhancedInstance = enhancedData ? enhancedData.find(d => d.instance_id === dataPoint.instance_id) : null;
-                const allScoresText = enhancedInstance ? 
-                    enhancedInstance.allClassScores.map((score, idx) => `C${idx}: ${score.toFixed(3)}`).join(', ') :
-                    'Not available';
-                
-                const detailsHtml = `
-                  <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                              background: white; border: 2px solid #333; border-radius: 8px; padding: 20px; 
-                              box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 10000; max-width: 500px; max-height: 400px; overflow-y: auto;">
-                    <h3 style="margin-top: 0; color: #333;">🔍 Enhanced Instance Details</h3>
-                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                      <p style="margin: 5px 0;"><strong>Instance ID:</strong> ${dataPoint.instance_id}</p>
-                      <p style="margin: 5px 0;"><strong>Ground Truth:</strong> <span style="color: #2ecc71; font-weight: bold;">C${dataPoint.true_label}</span></p>
-                      <p style="margin: 5px 0;"><strong>Predicted Label:</strong> <span style="color: #ff6b35; font-weight: bold;">C${dataPoint.pred_label}</span></p>
-                      <p style="margin: 5px 0;"><strong>Prediction Score:</strong> ${dataPoint.pred_score.toFixed(3)}</p>
-                      <p style="margin: 5px 0;"><strong>Classification:</strong> 
-                        <span style="color: ${dataPoint.match === 'TP' ? '#2ecc71' : '#e74c3c'}; font-weight: bold;">
-                          ${dataPoint.match === 'TP' ? '✓ Correct' : '✗ ' + dataPoint.match}
-                        </span>
-                      </p>
-                      <p style="margin: 5px 0;"><strong>Bookmarked:</strong> ${bookmarkedInstances.has(dataPoint.instance_id) ? "Yes ⭐" : "No"}</p>
-                    </div>
-                    
-                    <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ff6b35;">
-                      <h4 style="margin: 0 0 10px 0; color: #856404;">📊 All Class Prediction Scores</h4>
-                      <p style="margin: 0; font-size: 12px; font-family: monospace; line-height: 1.4;">
-                        ${allScoresText}
-                      </p>
-                    </div>
-                    
-                    <div style="text-align: center; margin-top: 20px;">
-                      <button onclick="this.parentElement.parentElement.remove()" 
-                              style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                `;
-                
-                document.body.insertAdjacentHTML('beforeend', detailsHtml);
-            }
-
-            const selector = document.getElementById("view_mode");
-            if (selector) {
-                selector.addEventListener("change", e => draw(e.target.value));
-            }
-            
-            document.getElementById("toggle-polylines").addEventListener("click", function() {
-                polylinesVisible = !polylinesVisible;
-                this.textContent = polylinesVisible ? "Hide" : "Show";
-                this.style.background = polylinesVisible ? "#e74c3c" : "#2ecc71";
-                draw(selector ? selector.value : "boxes");
-            });
-            
-            document.getElementById("clear-bookmarks").addEventListener("click", function() {
-                bookmarkedInstances.clear();
-                updateBookmarkCount();
-                draw(selector ? selector.value : "boxes");
-            });
-            
-            document.getElementById("instance-filter").addEventListener("change", function() {
-                currentFilter = this.value;
-                draw(selector ? selector.value : "boxes");
-            });
-            
-            document.getElementById("confusion-analysis").addEventListener("click", function() {
-                generateConfusionReport();
+          // tooltip + bookmark + polyline
+          const tip = d3.select("#tooltip");
+          rects
+            .on("mouseover", (ev, dd) => {
+              const d = dd.d;
+              tip.style("display","block").html(`
+                ${bookmarked.has(d.instance_id) ? "⭐ " : ""}GT: C${d.true_label}<br>
+                Pred: C${d.pred_label}<br>
+                Score: ${d.pred_score.toFixed(3)}
+              `);
+              if (polylinesVisible && d.class_scores) showInstancePolyline(d);
+            })
+            .on("mousemove", (ev) => {
+              tip.style("left", (ev.clientX + 12) + "px").style("top", (ev.clientY - 10) + "px");
+            })
+            .on("mouseout", () => {
+              tip.style("display","none");
+              if (polylinesVisible) hideInstancePolyline();
+            })
+            .on("click", (ev, dd) => {
+              const id = dd.d.instance_id;
+              if (bookmarked.has(id)) bookmarked.delete(id); else bookmarked.add(id);
+              updateBookmarkCount();
+              draw(viewMode); // refresh styles
+            })
+            .on("dblclick", (ev, dd) => {
+              showEnhancedInstanceDetails(dd.d);
             });
 
-            updateBookmarkCount();
-            draw("boxes");
-        }
+        } else {
+          // -------- STACKS LAYER --------
+          const layer = g.append("g").attr("class","layer stacks");
 
-        // For standalone HTML usage
-        window.createClassifierSquaresVisualization = createClassifierSquaresVisualization;
-        
-        // Placeholder for MNIST data - will be populated from Python/notebook
-        // This HTML file is designed to work with the classifier_squares_viz.py library
-        // When used standalone, you can replace this with your actual MNIST classification results
-        
-        // Example of how to use with your MNIST data:
-        // const mnistInstances = [
-        //     {"true_label": 0, "pred_label": 0, "pred_score": 0.95},
-        //     {"true_label": 1, "pred_label": 1, "pred_score": 0.87},
-        //     // ... your MNIST classification results
-        // ];
-        // createClassifierSquaresVisualization(mnistInstances);
-        
-        // For demo purposes only - replace with actual MNIST data
-        console.log("HTML file loaded. Use createClassifierSquaresVisualization(instances) with your MNIST data.");
-        
-        // If no data is provided, show placeholder message
-        document.getElementById("multi-class-vis").innerHTML = `
-            <div style="text-align: center; padding: 50px; color: #666; font-size: 16px;">
-                <h3>🎯 Enhanced Classifier Squares Visualization</h3>
-                <p>This visualization is ready to display your MNIST classification results.</p>
-                <p><strong>To use:</strong></p>
-                <ol style="text-align: left; max-width: 600px; margin: 20px auto;">
-                    <li>Use the Python library: <code>from classifier_squares_viz import ClassifierSquaresViz</code></li>
-                    <li>Load your MNIST data: <code>viz.load_sklearn_results(y_test, y_pred, y_proba)</code></li>
-                    <li>Display: <code>viz.show()</code></li>
-                </ol>
-                <p style="margin-top: 30px;">Or call <code>createClassifierSquaresVisualization(instances)</code> with your data array.</p>
-                <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: left;">
-                    <strong>Expected data format:</strong><br>
-                    <code>[{"true_label": 0, "pred_label": 1, "pred_score": 0.85}, ...]</code>
-                </div>
+          // 每个 bin 一条横条，内部分段：FN | TP | FP
+          const bars = [];
+          for (let visualOrder = 9; visualOrder >= 0; visualOrder--) {
+            const binIdx = visualOrder;
+            const binY = yBin(binIdx) + (yBin.bandwidth() - 16) / 2;
+
+            const tpCount = bins[binIdx].TP.filter(shouldShowInstance).length;
+            const fpCount = bins[binIdx].FP.filter(shouldShowInstance).length;
+            const fnCount = bins[binIdx].FN.filter(shouldShowInstance).length;
+            const total = tpCount + fpCount + fnCount;
+
+            const w = barWidthScale(total);
+            let xStart = cfg.baselineX;
+
+            const fnW = w * (total ? fnCount/total : 0);
+            const tpW = w * (total ? tpCount/total : 0);
+            const fpW = w * (total ? fpCount/total : 0);
+
+            if (fnW > 0) bars.push({key:`FN-${cls}-${binIdx}`, type:"FN", x:xStart, y:binY, w:fnW, h:16, tp:tpCount, fp:fpCount, fn:fnCount, total});
+            xStart += fnW;
+            if (tpW > 0) bars.push({key:`TP-${cls}-${binIdx}`, type:"TP", x:xStart, y:binY, w:tpW, h:16, tp:tpCount, fp:fpCount, fn:fnCount, total});
+            xStart += tpW;
+            if (fpW > 0) bars.push({key:`FP-${cls}-${binIdx}`, type:"FP", x:xStart, y:binY, w:fpW, h:16, tp:tpCount, fp:fpCount, fn:fnCount, total});
+          }
+
+          const segs = layer.selectAll("rect.stack")
+            .data(bars, d=>d.key)
+            .join(
+              enter => enter.append("rect").attr("class","stack")
+                            .attr("x", d=>d.x).attr("y", d=>d.y)
+                            .attr("width", d=>d.w).attr("height", d=>d.h)
+                            .style("opacity", 0.85),
+              update => update.attr("x", d=>d.x).attr("y", d=>d.y)
+                              .attr("width", d=>d.w).attr("height", d=>d.h),
+              exit => exit.remove()
+            )
+            .attr("fill", d => {
+              if (d.type === "FN") return "white";
+              if (d.type === "TP") return colorByClass(cls);
+              return colorByClass(cls);
+            })
+            .attr("stroke", d => d.type === "FN" ? colorByClass(cls) : (d.type === "FP" ? "#000" : "none"))
+            .attr("stroke-width", d => d.type === "FN" ? 1.5 : (d.type === "FP" ? 1.2 : 0));
+
+          const tip = d3.select("#tooltip");
+          segs.on("mouseover", (ev, d) => {
+              tip.style("display","block").html(
+                `Bin ${d.key.split("-").pop()}<br>Total: ${d.total}<br>TP:${d.tp} FP:${d.fp} FN:${d.fn}`
+              );
+            })
+            .on("mousemove", (ev) => {
+              tip.style("left", (ev.clientX + 12) + "px").style("top", (ev.clientY - 10) + "px");
+            })
+            .on("mouseout", () => tip.style("display","none"));
+        }
+      });
+    } // draw
+
+    // ---------- Polylines (hover profile) ----------
+    function showInstancePolyline(inst) {
+      polyGroup.selectAll("*").remove();
+
+      const pts = (inst.class_scores || []).map((score, i) => {
+        const x = i * cfg.subplotWidth + cfg.classOffset + cfg.yAxisOffset + cfg.baselineX;
+        const y = yScale(score);
+        return {x, y, score, idx:i};
+      });
+
+      const line = d3.line().x(d=>d.x).y(d=>d.y);
+      polyGroup.append("path")
+        .datum(pts)
+        .attr("d", line)
+        .attr("stroke", "#ff6b35")
+        .attr("stroke-width", 2)
+        .attr("fill", "none")
+        .attr("opacity", 0.9)
+        .style("pointer-events","none");
+
+      polyGroup.selectAll("circle.dot")
+        .data(pts)
+        .join("circle")
+        .attr("class","dot")
+        .attr("cx", d=>d.x)
+        .attr("cy", d=>d.y)
+        .attr("r", 3.5)
+        .attr("fill", "#ff6b35")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1)
+        .style("pointer-events","none");
+    }
+    function hideInstancePolyline(){ polyGroup.selectAll("*").remove(); }
+
+    // ---------- Confusion report ----------
+    function generateConfusionReport() {
+      const confusionData = {};
+      const classStats = {};
+      data.forEach(d => {
+        classStats[d.true_label] ??= {TP:0, FP:0, FN:0, total:0};
+        classStats[d.pred_label] ??= {TP:0, FP:0, FN:0, total:0};
+        classStats[d.true_label].total++;
+        if (d.true_label === d.pred_label) {
+          classStats[d.true_label].TP++;
+        } else {
+          classStats[d.true_label].FN++;
+          classStats[d.pred_label].FP++;
+          const key = `${d.true_label}->${d.pred_label}`;
+          confusionData[key] ??= {count:0, scores:[]};
+          confusionData[key].count++;
+          confusionData[key].scores.push(d.pred_score);
+        }
+      });
+      const tipHTML = `
+        <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+                    background:#fff; border:2px solid #333; border-radius:8px; padding:20px;
+                    box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:10000; max-width:640px; max-height:70vh; overflow:auto;">
+          <h3 style="margin:0 0 12px 0;">📊 Confusion Analysis Report</h3>
+          <div style="background:#f8f9fa; padding:12px; border-radius:4px; margin-bottom:12px;">
+            <div style="display:grid; grid-template-columns:auto auto auto auto auto; gap:10px; font-size:12px; font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:5px;">
+              <div>Class</div><div>Precision</div><div>Recall</div><div>F1</div><div>Support</div>
             </div>
-        `;
-    </script>
+            ${Object.keys(classStats).sort((a,b)=>a-b).map(cls=>{
+              const s = classStats[cls];
+              const P = s.TP / (s.TP + s.FP) || 0;
+              const R = s.TP / (s.TP + s.FN) || 0;
+              const F1 = 2*P*R/(P+R) || 0;
+              return `<div style="display:grid; grid-template-columns:auto auto auto auto auto; gap:10px; font-size:12px; padding:3px 0;">
+                        <div>C${cls}</div><div>${P.toFixed(3)}</div><div>${R.toFixed(3)}</div><div>${F1.toFixed(3)}</div><div>${s.total}</div>
+                      </div>`;
+            }).join("")}
+          </div>
+          <div style="background:#fff3cd; padding:12px; border-radius:4px;">
+            <h4 style="margin:0 0 8px 0; color:#856404;">⚠️ Top Confusion Patterns</h4>
+            ${Object.entries(confusionData).sort(([,a],[,b])=>b.count-a.count).slice(0,5).map(([k,v])=>{
+              const avg = d3.mean(v.scores) ?? 0;
+              return `<div style="margin:6px 0; padding:8px; background:rgba(255,193,7,0.1); border-left:3px solid #ffc107; font-size:12px;">
+                        <strong>${k}</strong>: ${v.count} instances (avg score: ${avg.toFixed(3)})
+                      </div>`;
+            }).join("")}
+          </div>
+          <div style="text-align:center; margin-top:16px;">
+            <button onclick="this.parentElement.parentElement.remove()"
+                    style="padding:8px 16px; background:#007bff; color:#fff; border:none; border-radius:4px;">Close</button>
+          </div>
+        </div>`;
+      document.body.insertAdjacentHTML("beforeend", tipHTML);
+    }
+
+    // ---------- Controls ----------
+    const selector = document.getElementById("view_mode");
+    const btnPoly = document.getElementById("toggle-polylines");
+    const btnClear = document.getElementById("clear-bookmarks");
+    const selFilter = document.getElementById("instance-filter");
+    const btnReport = document.getElementById("confusion-analysis");
+
+    function redraw() { draw(selector ? selector.value : "auto"); }
+
+    selector?.addEventListener("change", redraw);
+    btnPoly?.addEventListener("click", function(){
+      polylinesVisible = !polylinesVisible;
+      this.textContent = polylinesVisible ? "Hide" : "Show";
+      this.style.background = polylinesVisible ? "#e74c3c" : "#2ecc71";
+      redraw();
+    });
+    btnClear?.addEventListener("click", function(){
+      bookmarked.clear();
+      updateBookmarkCount();
+      redraw();
+    });
+    selFilter?.addEventListener("change", function(){
+      currentFilter = this.value;
+      redraw();
+    });
+    btnReport?.addEventListener("click", generateConfusionReport);
+
+    updateBookmarkCount();
+    draw("auto"); // initial
+  }
+
+  // expose to global
+  window.createClassifierSquaresVisualization = createClassifierSquaresVisualization;
+
+  // Placeholder content (if user hasn't called the function yet)
+  document.getElementById("multi-class-vis").innerHTML = `
+    <div style="text-align:center; padding:50px; color:#666; font-size:16px;">
+      <h3>🎯 Classifier Squares Visualization (Scaled & LOD)</h3>
+      <p>This visualization is ready for your classification results.</p>
+      <p><strong>Use:</strong></p>
+      <ol style="text-align:left; max-width:620px; margin:20px auto;">
+        <li>Prepare data: <code>[{true_label:0, pred_label:1, pred_score:0.85, class_scores:[...]}, ...]</code></li>
+        <li>Call: <code>createClassifierSquaresVisualization(instances)</code></li>
+      </ol>
+    </div>
+  `;
+  </script>
 </body>
 </html>
