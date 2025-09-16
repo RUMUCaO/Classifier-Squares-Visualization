@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
@@ -108,6 +108,7 @@
     let currentFilter = "all";
     let iid = 0;
 
+    // 数据清洗
     const data = instances.map(d => ({
       true_label: +d.true_label,
       pred_label: +d.pred_label,
@@ -123,14 +124,18 @@
     function updateBookmarkCount(){
       document.getElementById("bookmark-count").textContent = `${bookmarked.size} instances`;
     }
-    function shouldShow(d){
-      if (currentFilter === "bookmarked" && !bookmarked.has(d.instance_id)) return false;
-      if (currentFilter === "tp" && d.match !== "TP") return false;
-      if (currentFilter === "fp" && d.match !== "FP") return false;
-      if (currentFilter === "fn") return true; // 在各类里按逻辑区分
-      if (currentFilter === "high-Prediction Score" && d.pred_score < 0.8) return false;
-      if (currentFilter === "low-Prediction Score" && d.pred_score >= 0.5) return false;
-      return true;
+
+    // 过滤：按“当前类里的类型”（TP/FP/FN）判断
+    function shouldShow(d, typeForThisClass) {
+      switch (currentFilter) {
+        case "bookmarked": return bookmarked.has(d.instance_id);
+        case "tp":         return typeForThisClass === "TP";
+        case "fp":         return typeForThisClass === "FP";
+        case "fn":         return typeForThisClass === "FN";
+        case "high-Prediction Score": return d.pred_score >= 0.8;
+        case "low-Prediction Score":  return d.pred_score < 0.5;
+        default: return true;
+      }
     }
     function binIndex(s){ return Math.min(Math.floor(s*10), 9); }
 
@@ -160,7 +165,7 @@
     classG.selectAll("text.title")
       .data(d=>[d]).join("text")
       .attr("class","title")
-      .text(d => `Class ${d}`)
+      .text(d => (classNames && classNames[d]) ? `C${d} · ${classNames[d]}` : `Class ${d}`)
       .attr("x", cfg.subplotWidth/2).attr("y", cfg.marginTop - 20)
       .attr("text-anchor","middle").style("font-weight","bold").style("font-size","18px").style("fill", d=>colorByClass(d));
 
@@ -185,6 +190,40 @@
     const allTotals = [];
     perClassBins.forEach(bins => bins.forEach(bin => allTotals.push(bin.TP.length + bin.FP.length + bin.FN.length)));
     const maxGlobalBinTotal = Math.max(d3.max(allTotals) ?? 1, 1);
+
+    // ---------- Overflow tooltip helpers ----------
+    function showOverflowTooltip(event, arr, type, binIdx){
+      if (!arr || !arr.length) return;
+      const maxShow = 20;
+      const html = `
+        <div style="max-width:340px; max-height:260px; overflow-y:auto; font-size:12px;
+                    background:#fffbe6; border:2px solid #ff6b35; border-radius:6px;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:10px;">
+          <b>${type} overflow in bin ${binIdx} (showing ${Math.min(maxShow, arr.length)})</b>
+          <ul style="margin:6px 0 0 0; padding:0; list-style:none;">
+            ${arr.slice(0,maxShow).map(d=>(
+              `<li style="margin-bottom:2px;">ID:${d.instance_id} · GT:C${d.true_label} · Pred:C${d.pred_label} · Score:${d.pred_score.toFixed(2)}</li>`
+            )).join("")}
+          </ul>
+          ${arr.length>maxShow? `<div style="color:#e67e22;">… ${arr.length-maxShow} more</div>` : ""}
+        </div>`;
+      let el = document.getElementById("overflow-tooltip");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "overflow-tooltip";
+        el.style.position = "fixed";
+        el.style.zIndex = 9999;
+        document.body.appendChild(el);
+      }
+      el.innerHTML = html;
+      el.style.display = "block";
+      el.style.left = (event.clientX + 14) + "px";
+      el.style.top  = (event.clientY - 10) + "px";
+    }
+    function hideOverflowTooltip(){
+      const el = document.getElementById("overflow-tooltip");
+      if (el) el.style.display = "none";
+    }
 
     // ---------- Draw ----------
     function draw(viewMode="auto"){
@@ -225,24 +264,68 @@
             const binIdx = v, binTop = yBin(binIdx), binH = yBin.bandwidth();
             const pitchY = Math.max(cfg.minCell, xRight.bandwidth()) + cfg.spacing;
 
-            const tp = bins[binIdx].TP.filter(shouldShow);
-            const fp = bins[binIdx].FP.filter(shouldShow);
-            const fn = bins[binIdx].FN.filter(shouldShow);
+            // 过滤（按当前类的类型）
+            const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
+            const fpAll = bins[binIdx].FP.filter(d => shouldShow(d, "FP"));
+            const fnAll = bins[binIdx].FN.filter(d => shouldShow(d, "FN"));
 
-            tp.slice(0, cfg.maxBoxesPerBinRender).forEach((d,i)=>{
+            const tp = tpAll.slice(0, cfg.maxBoxesPerBinRender);
+            const fp = fpAll.slice(0, cfg.maxBoxesPerBinRender);
+            const fn = fnAll.slice(0, cfg.maxBoxesPerBinRender);
+
+            const tpOverflow = Math.max(0, tpAll.length - tp.length);
+            const fpOverflow = Math.max(0, fpAll.length - fp.length);
+            const fnOverflow = Math.max(0, fnAll.length - fn.length);
+
+            // TP（右侧）
+            tp.forEach((d,i)=>{
               const col = i % cfg.rowsPerBin, row = Math.floor(i/cfg.rowsPerBin);
               items.push({key:`TP-${cls}-${binIdx}-${d.instance_id}`, type:"TP", d, x:xRight(col), y:binTop+binH-(row+1)*pitchY, w:xRight.bandwidth(), h:xRight.bandwidth()});
             });
-            const start = Math.min(tp.length, cfg.maxBoxesPerBinRender);
-            fp.slice(0, cfg.maxBoxesPerBinRender).forEach((d,i)=>{
+            // FP 接在 TP 后
+            const start = Math.min(tpAll.length, cfg.maxBoxesPerBinRender);
+            fp.forEach((d,i)=>{
               const k = start + i, col = k % cfg.rowsPerBin, row = Math.floor(k/cfg.rowsPerBin);
               items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x:xRight(col), y:binTop+binH-(row+1)*pitchY, w:xRight.bandwidth(), h:xRight.bandwidth()});
             });
-            fn.slice(0, cfg.maxBoxesPerBinRender).forEach((d,i)=>{
+            // FN（左侧镜像）
+            fn.forEach((d,i)=>{
               const col = i % cfg.rowsPerBin, row = Math.floor(i/cfg.rowsPerBin);
               const x = xLeft(cfg.rowsPerBin-1-col);
               if (x != null) items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y:binTop+binH-(row+1)*pitchY, w:xLeft.bandwidth(), h:xLeft.bandwidth()});
             });
+
+            // 溢出标记
+            if (tpOverflow > 0) {
+              layer.append("text")
+                .attr("x", cfg.baselineX + (cfg.subplotWidth - cfg.baselineX) - 28)
+                .attr("y", binTop + 12)
+                .attr("fill", colorByClass(cls))
+                .style("font-size","12px").style("font-weight","700").style("cursor","pointer")
+                .text(`+${tpOverflow}`)
+                .on("mouseover", ev => showOverflowTooltip(ev, tpAll.slice(cfg.maxBoxesPerBinRender), "TP", binIdx))
+                .on("mouseout", hideOverflowTooltip);
+            }
+            if (fpOverflow > 0) {
+              layer.append("text")
+                .attr("x", cfg.baselineX + (cfg.subplotWidth - cfg.baselineX) - 28)
+                .attr("y", binTop + 28)
+                .attr("fill", "#000")
+                .style("font-size","12px").style("font-weight","700").style("cursor","pointer")
+                .text(`+${fpOverflow}`)
+                .on("mouseover", ev => showOverflowTooltip(ev, fpAll.slice(cfg.maxBoxesPerBinRender), "FP", binIdx))
+                .on("mouseout", hideOverflowTooltip);
+            }
+            if (fnOverflow > 0) {
+              layer.append("text")
+                .attr("x", 12)
+                .attr("y", binTop + 20)
+                .attr("fill", colorByClass(cls))
+                .style("font-size","12px").style("font-weight","700").style("cursor","pointer")
+                .text(`+${fnOverflow}`)
+                .on("mouseover", ev => showOverflowTooltip(ev, fnAll.slice(cfg.maxBoxesPerBinRender), "FN", binIdx))
+                .on("mouseout", hideOverflowTooltip);
+            }
           }
 
           const rects = layer.selectAll("rect.instance")
@@ -282,14 +365,14 @@
           const bars = [];
           for (let v=9; v>=0; v--){
             const binIdx = v, binY = yBin(binIdx) + (yBin.bandwidth()-16)/2;
-            const tp = bins[binIdx].TP.filter(shouldShow).length;
-            const fp = bins[binIdx].FP.filter(shouldShow).length;
-            const fn = bins[binIdx].FN.filter(shouldShow).length;
+            const tp = bins[binIdx].TP.filter(d => shouldShow(d,"TP")).length;
+            const fp = bins[binIdx].FP.filter(d => shouldShow(d,"FP")).length;
+            const fn = bins[binIdx].FN.filter(d => shouldShow(d,"FN")).length;
             const total = tp+fp+fn, w = barWidth(total);
             let x = cfg.baselineX, fnW = w*(total?fn/total:0), tpW = w*(total?tp/total:0), fpW = w*(total?fp/total:0);
-            if (fnW>0) { bars.push({key:`FN-${cls}-${binIdx}`, type:"FN", x, y:binY, w:fnW, h:16, total, tp, fp, fn}); x+=fnW; }
-            if (tpW>0) { bars.push({key:`TP-${cls}-${binIdx}`, type:"TP", x, y:binY, w:tpW, h:16, total, tp, fp, fn}); x+=tpW; }
-            if (fpW>0) { bars.push({key:`FP-${cls}-${binIdx}`, type:"FP", x, y:binY, w:fpW, h:16, total, tp, fp, fn}); }
+            if (fnW>0) { bars.push({key:`FN-${cls}-${binIdx}`, type:"FN", binIdx, x, y:binY, w:fnW, h:16, total, tp, fp, fn}); x+=fnW; }
+            if (tpW>0) { bars.push({key:`TP-${cls}-${binIdx}`, type:"TP", binIdx, x, y:binY, w:tpW, h:16, total, tp, fp, fn}); x+=tpW; }
+            if (fpW>0) { bars.push({key:`FP-${cls}-${binIdx}`, type:"FP", binIdx, x, y:binY, w:fpW, h:16, total, tp, fp, fn}); }
           }
           const segs = layer.selectAll("rect.stack")
             .data(bars, d=>d.key)
@@ -306,7 +389,10 @@
             .attr("stroke-width", d => d.type==="FN" ? 1.5 : (d.type==="FP" ? 1.2 : 0));
 
           const tip = d3.select("#tooltip");
-          segs.on("mouseover",(ev,d)=> tip.style("display","block").html(`Bin ${d.key.split("-").pop()}<br>Total: ${d.total}<br>TP:${d.tp} FP:${d.fp} FN:${d.fn}`))
+          segs.on("mouseover",(ev,d)=>{
+                const lo = (d.binIdx/10).toFixed(1), hi = ((d.binIdx+1)/10).toFixed(1);
+                tip.style("display","block").html(`Bin ${d.binIdx} · Score: [${lo}, ${hi})<br>Total: ${d.total}<br>TP:${d.tp} FP:${d.fp} FN:${d.fn}`);
+              })
               .on("mousemove", ev => tip.style("left",(ev.clientX+12)+"px").style("top",(ev.clientY-10)+"px"))
               .on("mouseout", ()=> tip.style("display","none"));
         }
