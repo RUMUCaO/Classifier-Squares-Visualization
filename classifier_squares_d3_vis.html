@@ -98,7 +98,7 @@
       minCell: 6,
       maxCell: opts.maxCell ?? 64,
       rowsPerBin: opts.rowsPerBin ?? 10,
-      fnSingleRow: opts.fnSingleRow ?? true,   // 关键：左侧 FN 固定单行
+      fnSingleRow: opts.fnSingleRow ?? false,   // 关键：左侧 FN 固定单行
       maxBoxesPerBinRender: 5000,
     };
     const colors = d3.schemeCategory10;
