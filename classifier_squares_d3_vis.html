@@ -321,7 +321,7 @@
               const col = i; // 单行：第 i 个就是第 i 列
               const x = Math.round(cfg.baselineX - (col + 1) * stepX);
               const y = Math.round(binTop + binH - stepY); // 单行固定在该 bin 的底部一行
-              if (x >= 0) items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
+              items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
             });
 
             // 溢出标记
