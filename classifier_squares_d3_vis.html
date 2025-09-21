@@ -270,8 +270,8 @@
           const stepY = cell + cfg.spacing;
 
           const colsR = Math.max(1, Math.min(colsTarget, Math.floor((rightWidth + cfg.spacing) / stepX)));
-          // 左侧：单行时只需“单行可容纳的列数”，不再按 rowsPerBin 换行
-          const colsL_singleRow = Math.max(1, Math.floor((leftWidth + cfg.spacing) / stepX));
+          // 左右统一列数，左侧也用右侧的 colsR
+          const colsL_singleRow = colsR;
 
           const items = [];
           for (let v=9; v>=0; v--){
