@@ -88,12 +88,12 @@
     // ---------- Config ----------
     const cfg = {
       svgHeight: opts.svgHeight ?? 800,
-      subplotWidth: opts.subplotWidth ?? 120,
-      classOffset: 60,
-      yAxisOffset: 45,
+      subplotWidth: opts.subplotWidth ?? 80, // 缩窄每个子图宽度
+      classOffset: 40, // 缩窄 class 间距
+      yAxisOffset: 35, // 缩窄 y 轴间距
       marginTop: 50,
       marginBottom: 120,
-      baselineX: 43,
+      baselineX: 30, // baseline 缩窄
       spacing: 1,
       minCell: 6,
       maxCell: opts.maxCell ?? 64,
@@ -141,7 +141,7 @@
     function binIndex(s){ return Math.min(Math.floor(s*10), 9); }
 
     // ---------- SVG ----------
-    const svgWidth = Math.max(cfg.subplotWidth * classes.length + cfg.classOffset + cfg.yAxisOffset + 20, 1200);
+  const svgWidth = Math.max(cfg.subplotWidth * classes.length + cfg.classOffset + cfg.yAxisOffset + 20, 600); // 最小宽度也缩窄
     const root = d3.select("#multi-class-vis").html("");
     const svg = root.append("svg").attr("width", svgWidth).attr("height", cfg.svgHeight).attr("viewBox", `0 0 ${svgWidth} ${cfg.svgHeight}`);
     const main = svg.append("g").attr("class", "main");
