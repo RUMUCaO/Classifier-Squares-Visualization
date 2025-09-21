@@ -365,7 +365,7 @@
               enter => enter.append("rect").attr("class","instance")
                             .attr("shape-rendering","crispEdges")
                             .attr("vector-effect","non-scaling-stroke")
-                            .attr("rx",1.5).attr("ry",1.5)
+                            .attr("rx",2).attr("ry",2)
                             .attr("x",d=>d.x).attr("y",d=>d.y)
                             .attr("width",d=>d.w).attr("height",d=>d.h)
                             .style("cursor","pointer"),
@@ -374,26 +374,58 @@
                             .attr("width",d=>d.w).attr("height",d=>d.h),
               exit => exit.remove()
             )
-            .style("opacity", d => bookmarked.has(d.d.instance_id) ? 1 : 0.9)
-            .attr("fill", d => d.type==="FN" ? "#ffffff" : colorByClass(d.d.true_label))
+            .attr("fill", d => {
+              if (d.type === "TP") return colorByClass(d.d.true_label);
+              if (d.type === "FP") return colorByClass(d.d.true_label);
+              if (d.type === "FN") return "#fff";
+              return "#ccc";
+            })
             .attr("stroke", d => {
               if (bookmarked.has(d.d.instance_id)) return "#ff6b6b";
-              if (d.type==="FN") return colorByClass(d.d.pred_label);
-              if (d.type==="FP") return "#000";
+              if (d.type === "TP") return "none";
+              if (d.type === "FP") return "#000";
+              if (d.type === "FN") return colorByClass(d.d.pred_label);
               return "none";
             })
-            .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 2 : (d.type==="FN"||d.type==="FP") ? 1 : 0);
+            .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 3 : (d.type === "FP" || d.type === "FN") ? 1.5 : 0)
+            .style("fill-opacity", d => d.type === "FP" ? 0.6 : 1)
+            .style("opacity", d => bookmarked.has(d.d.instance_id) ? 1 : 0.85);
 
+          // 交互：悬停显示详细信息，点击收藏，双击弹窗详情
           const tip = d3.select("#tooltip");
           rects.on("mouseover", (ev,dd)=>{
               const d = dd.d;
-              tip.style("display","block").html(`${bookmarked.has(d.instance_id)?"⭐ ":""}GT: C${d.true_label}<br>Pred: C${d.pred_label}<br>Score: ${d.pred_score.toFixed(3)}`);
+              tip.style("display","block").html(`${bookmarked.has(d.instance_id)?"⭐ ":""}Ground Truth: C${d.true_label}<br>Predicted Label: C${d.pred_label}<br>Prediction Score: ${d.pred_score.toFixed(3)}`);
               if (polylinesVisible && d.class_scores) showPolyline(d);
             })
-            .on("mousemove", ev => tip.style("left",(ev.clientX+12)+"px").style("top",(ev.clientY-10)+"px"))
+            .on("mousemove", ev => tip.style("left",(ev.clientX+15)+"px").style("top",(ev.clientY-15)+"px"))
             .on("mouseout", ()=>{ tip.style("display","none"); if (polylinesVisible) hidePolyline(); })
-            .on("click",(ev,dd)=>{ const id=dd.d.instance_id; bookmarked.has(id)?bookmarked.delete(id):bookmarked.add(id); updateBookmarkCount(); draw(viewMode); })
-            .on("dblclick",(ev,dd)=> showDetails(dd.d));
+            .on("click",(ev,dd)=>{
+              const id=dd.d.instance_id;
+              if (bookmarked.has(id)) {
+                bookmarked.delete(id);
+              } else {
+                bookmarked.add(id);
+              }
+              updateBookmarkCount();
+              draw(viewMode);
+            })
+            .on("dblclick",(ev,dd)=>{
+              const d = dd.d;
+              const scores = d.class_scores ? d.class_scores.map((v,i)=>`C${i}:${v.toFixed(3)}`).join(", ") : "Not available";
+              const html = `
+                <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border:2px solid #333; border-radius:8px; padding:16px; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:10000; max-width:520px;">
+                  <h3 style="margin:0 0 10px 0;">🔍 Instance Details</h3>
+                  <div style="font-size:13px;">
+                    <p><b>GT:</b> C${d.true_label} &nbsp; <b>Pred:</b> C${d.pred_label} &nbsp; <b>Score:</b> ${d.pred_score.toFixed(3)}</p>
+                    <p style="word-break:break-all;"><b>All Scores:</b> ${scores}</p>
+                  </div>
+                  <div style="text-align:center; margin-top:12px;">
+                    <button onclick="this.parentElement.parentElement.remove()" style="padding:8px 16px; background:#3498db; color:#fff; border:none; border-radius:4px; cursor:pointer;">Close</button>
+                  </div>
+                </div>`;
+              document.body.insertAdjacentHTML("beforeend", html);
+            });
 
         } else {
           const layer = g.append("g").attr("class","layer stacks");
