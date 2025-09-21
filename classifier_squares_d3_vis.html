@@ -282,7 +282,7 @@
             const maxRowsLeft  = cfg.fnSingleRow ? 1 : maxRowsRight;
 
             const capRight = colsR * maxRowsRight;      // TP+FP 容量
-            const capLeft  = colsL_singleRow * maxRowsLeft; // FN 容量（单行）
+            const capLeft  = capRight; // FN 容量与右侧一致
 
             // 过滤
             const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
