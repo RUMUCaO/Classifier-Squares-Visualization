@@ -116,6 +116,8 @@
       pred_label: +d.pred_label,
       pred_score: +d.pred_score,
       class_scores: Array.isArray(d.class_scores) ? d.class_scores.map(Number) : null,
+      match: d.true_label === d.pred_label ? "TP" : "FP",
+      class_focus: +d.true_label,
       instance_id: iid++
     }));
 
@@ -179,26 +181,10 @@
     classes.forEach(cls => {
       const bins = Array.from({length:10}, () => ({TP:[], FP:[], FN:[]}));
       data.forEach(d => {
-        // TP: 真实标签和预测标签都是当前类别 cls
-        if (d.true_label === cls && d.pred_label === cls) {
-          const b = binIndex(d.pred_score);
-          bins[b].TP.push(d);
-        }
-        // FP: 预测为当前类别 cls，但真实标签不是 cls
-        else if (d.pred_label === cls && d.true_label !== cls) {
-          const b = binIndex(d.pred_score);
-          bins[b].FP.push(d);
-        }
-        // FN: 真实标签是当前类别 cls，但预测不是 cls
-        // 使用当前类别的分数来分桶，而不是预测类别的分数
-        else if (d.true_label === cls && d.pred_label !== cls) {
-          // 如果有class_scores，使用当前类别的分数；否则使用较低的默认值
-          const scoreForThisClass = (d.class_scores && d.class_scores[cls] !== undefined) 
-            ? d.class_scores[cls] 
-            : (1 - d.pred_score); // 简单估算：如果没有具体分数，用1-pred_score作为近似
-          const b = binIndex(scoreForThisClass);
-          bins[b].FN.push(d);
-        }
+        const b = binIndex(d.pred_score);
+        if (d.true_label === cls && d.pred_label === cls) bins[b].TP.push(d);
+        else if (d.pred_label === cls && d.true_label !== cls) bins[b].FP.push(d);
+        else if (d.true_label === cls && d.pred_label !== cls) bins[b].FN.push(d);
       });
       perClassBins.set(cls, bins);
     });
@@ -446,14 +432,14 @@
           const bars = [];
           for (let v=9; v>=0; v--){
             const binIdx = v, binY = yBin(binIdx) + (yBin.bandwidth()-16)/2;
+            // 在Stack模式中，只按预测标签显示，避免重复
+            // 只显示预测为当前类别的实例（TP + FP）
             const tp = bins[binIdx].TP.filter(d => shouldShow(d,"TP")).length;
             const fp = bins[binIdx].FP.filter(d => shouldShow(d,"FP")).length;
-            const fn = bins[binIdx].FN.filter(d => shouldShow(d,"FN")).length;
-            const total = tp+fp+fn, w = barWidth(total);
-            let x = cfg.baselineX, fnW = w*(total?fn/total:0), tpW = w*(total?tp/total:0), fpW = w*(total?fp/total:0);
-            if (fnW>0) { bars.push({key:`FN-${cls}-${binIdx}`, type:"FN", binIdx, x, y:binY, w:fnW, h:16, total, tp, fp, fn}); x+=fnW; }
-            if (tpW>0) { bars.push({key:`TP-${cls}-${binIdx}`, type:"TP", binIdx, x, y:binY, w:tpW, h:16, total, tp, fp, fn}); x+=tpW; }
-            if (fpW>0) { bars.push({key:`FP-${cls}-${binIdx}`, type:"FP", binIdx, x, y:binY, w:fpW, h:16, total, tp, fp, fn}); }
+            const total = tp + fp, w = barWidth(total);
+            let x = cfg.baselineX, tpW = total > 0 ? w * (tp/total) : 0, fpW = total > 0 ? w * (fp/total) : 0;
+            if (tpW>0) { bars.push({key:`TP-${cls}-${binIdx}`, type:"TP", binIdx, x, y:binY, w:tpW, h:16, total, tp, fp, fn:0}); x+=tpW; }
+            if (fpW>0) { bars.push({key:`FP-${cls}-${binIdx}`, type:"FP", binIdx, x, y:binY, w:fpW, h:16, total, tp, fp, fn:0}); }
           }
           const segs = layer.selectAll("rect.stack")
             .data(bars, d=>d.key)
@@ -477,7 +463,7 @@
           const tip = d3.select("#tooltip");
           segs.on("mouseover",(ev,d)=>{
                 const lo = (d.binIdx/10).toFixed(1), hi = ((d.binIdx+1)/10).toFixed(1);
-                tip.style("display","block").html(`Bin ${d.binIdx} · Score: [${lo}, ${hi})<br>Total: ${d.total}<br>TP:${d.tp} FP:${d.fp} FN:${d.fn}`);
+                tip.style("display","block").html(`Bin ${d.binIdx} · Score: [${lo}, ${hi})<br>Predicted as this class: ${d.total}<br>TP:${d.tp} FP:${d.fp}`);
               })
               .on("mousemove", ev => tip.style("left",(ev.clientX+12)+"px").style("top",(ev.clientY-10)+"px"))
               .on("mouseout", ()=> tip.style("display","none"));
