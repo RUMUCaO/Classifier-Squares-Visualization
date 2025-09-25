@@ -116,8 +116,6 @@
       pred_label: +d.pred_label,
       pred_score: +d.pred_score,
       class_scores: Array.isArray(d.class_scores) ? d.class_scores.map(Number) : null,
-      match: d.true_label === d.pred_label ? "TP" : "FP",
-      class_focus: +d.true_label,
       instance_id: iid++
     }));
 
@@ -181,10 +179,21 @@
     classes.forEach(cls => {
       const bins = Array.from({length:10}, () => ({TP:[], FP:[], FN:[]}));
       data.forEach(d => {
-        const b = binIndex(d.pred_score);
-        if (d.true_label === cls && d.pred_label === cls) bins[b].TP.push(d);
-        else if (d.pred_label === cls && d.true_label !== cls) bins[b].FP.push(d);
-        else if (d.true_label === cls && d.pred_label !== cls) bins[b].FN.push(d);
+        // TP: 真实标签和预测标签都是当前类别 cls
+        if (d.true_label === cls && d.pred_label === cls) {
+          const b = binIndex(d.pred_score);
+          bins[b].TP.push(d);
+        }
+        // FP: 预测为当前类别 cls，但真实标签不是 cls
+        else if (d.pred_label === cls && d.true_label !== cls) {
+          const b = binIndex(d.pred_score);
+          bins[b].FP.push(d);
+        }
+        // FN: 真实标签是当前类别 cls，但预测不是 cls
+        else if (d.true_label === cls && d.pred_label !== cls) {
+          const b = binIndex(d.pred_score);
+          bins[b].FN.push(d);
+        }
       });
       perClassBins.set(cls, bins);
     });
@@ -375,8 +384,8 @@
               exit => exit.remove()
             )
             .attr("fill", d => {
-              if (d.type === "TP") return colorByClass(d.d.true_label);
-              if (d.type === "FP") return colorByClass(d.d.true_label);
+              if (d.type === "TP") return "#3498db";  // 全蓝色
+              if (d.type === "FP") return "#e74c3c";  // 全红色
               if (d.type === "FN") return "white";
               return "#ccc";
             })
@@ -451,7 +460,12 @@
               update => update.attr("x",d=>d.x).attr("y",d=>d.y).attr("width",d=>d.w).attr("height",d=>d.h),
               exit => exit.remove()
             )
-            .attr("fill", d => d.type==="FN" ? "white" : colorByClass(cls))
+            .attr("fill", d => {
+              if (d.type === "FN") return "white";
+              if (d.type === "TP") return "#3498db";  // 全蓝色
+              if (d.type === "FP") return "#e74c3c";  // 全红色
+              return colorByClass(cls);
+            })
             .attr("stroke", d => d.type==="FN" ? colorByClass(cls) : (d.type==="FP" ? "black" : "none"))
             .attr("stroke-width", d => d.type==="FN" ? 1.5 : (d.type==="FP" ? 1.5 : 0));
 
