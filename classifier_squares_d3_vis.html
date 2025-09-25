@@ -70,9 +70,9 @@
     <div class="legend">
       <h4 style="margin:0 0 10px 0; color:#333;">📖 Visualization Legend</h4>
       <div style="display:flex; flex-wrap:wrap; gap:15px;">
-        <div class="legend-item"><span class="legend-color" style="background:#3498db; border:none;"></span><strong>TP</strong>: colored box</div>
-        <div class="legend-item"><span class="legend-color" style="background:#e74c3c; border:1px solid #333;"></span><strong>FP</strong>: colored fill + black border</div>
-        <div class="legend-item"><span class="legend-color" style="background:white; border:1px solid #3498db;"></span><strong>FN</strong>: white + colored border</div>
+        <div class="legend-item"><span class="legend-color" style="background:#3498db; border:none;"></span><strong>TP (True Positives)</strong>: Correctly classified - colored box, no border</div>
+        <div class="legend-item"><span class="legend-color" style="background:#e74c3c; border:1px solid black;"></span><strong>FP (False Positives)</strong>: Incorrectly classified as this class - colored fill + black border</div>
+        <div class="legend-item"><span class="legend-color" style="background:white; border:1px solid #3498db;"></span><strong>FN (False Negatives)</strong>: Should belong to this class but missed - white fill + colored border</div>
         <div class="legend-item"><span style="display:inline-block; width:16px; height:2px; background:#333; margin-right:5px; vertical-align:middle;"></span><strong>Baseline</strong></div>
         <div class="legend-item"><span style="display:inline-block; width:16px; height:2px; background:#ff6b35; margin-right:5px; vertical-align:middle;"></span><strong>Polyline</strong></div>
       </div>
@@ -377,14 +377,14 @@
             .attr("fill", d => {
               if (d.type === "TP") return colorByClass(d.d.true_label);
               if (d.type === "FP") return colorByClass(d.d.true_label);
-              if (d.type === "FN") return "#fff";
+              if (d.type === "FN") return "white";
               return "#ccc";
             })
             .attr("stroke", d => {
               if (bookmarked.has(d.d.instance_id)) return "#ff6b6b";
               if (d.type === "TP") return "none";
-              if (d.type === "FP") return "#000";
-              if (d.type === "FN") return colorByClass(d.d.pred_label);
+              if (d.type === "FP") return "black";
+              if (d.type === "FN") return colorByClass(d.d.true_label);
               return "none";
             })
             .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 3 : (d.type === "FP" || d.type === "FN") ? 1.5 : 0)
@@ -452,8 +452,8 @@
               exit => exit.remove()
             )
             .attr("fill", d => d.type==="FN" ? "white" : colorByClass(cls))
-            .attr("stroke", d => d.type==="FN" ? colorByClass(cls) : (d.type==="FP" ? "#000" : "none"))
-            .attr("stroke-width", d => d.type==="FN" ? 1.5 : (d.type==="FP" ? 1.2 : 0));
+            .attr("stroke", d => d.type==="FN" ? colorByClass(cls) : (d.type==="FP" ? "black" : "none"))
+            .attr("stroke-width", d => d.type==="FN" ? 1.5 : (d.type==="FP" ? 1.5 : 0));
 
           const tip = d3.select("#tooltip");
           segs.on("mouseover",(ev,d)=>{
