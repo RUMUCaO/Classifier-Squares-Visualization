@@ -93,7 +93,7 @@
       yAxisOffset: 45,
       marginTop: 50,
       marginBottom: 120,
-      baselineX: 55,  // Increased baseline position to provide more left space
+      baselineX: 75,  // Further increased baseline position for more FN space
       spacing: 2,
       minCell: 12,
       maxCell: opts.maxCell ?? 24,
@@ -231,7 +231,7 @@
         const bins = perClassBins.get(cls);
 
         const rightWidth = cfg.subplotWidth - cfg.baselineX - 10;
-        const leftWidth  = cfg.baselineX - 10;
+        const leftWidth  = cfg.baselineX - 5;  // Give more space to left side
 
         // Detect LOD (only for switching decision)
         const xRightProbe = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]);
@@ -266,7 +266,7 @@
           
           // Ensure minimum spacing from edges to prevent collision
           const rightSafeWidth = rightWidth - 20; // Reserve 20px on right
-          const leftSafeWidth = leftWidth - 15;   // Reserve 15px on left
+          const leftSafeWidth = leftWidth - 8;    // Reduce left reserve to allow more FN boxes
           
           const cellR_byRows = Math.floor((rightSafeWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
           const cellL_byRows = Math.floor((leftSafeWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
@@ -358,8 +358,8 @@
                 .on("mouseout", hideOverflowTooltip);
             }
             if (fnOverflow > 0) {
-              // FN overflow marker positioned safely on the left with proper spacing
-              const fnOverflowX = Math.max(10, cfg.baselineX - colsL * stepX - 30);
+              // FN overflow marker positioned further left
+              const fnOverflowX = Math.max(2, cfg.baselineX - colsL * stepX - 35);
               layer.append("text")
                 .attr("x", fnOverflowX)
                 .attr("y", binTop + binH/2)
