@@ -99,7 +99,7 @@
       maxCell: opts.maxCell ?? 24,
       rowsPerBin: opts.rowsPerBin ?? 8,
       fnSingleRow: opts.fnSingleRow ?? false,   // Key: Fix FN to single row on left side
-      maxBoxesPerBinRender: 5000,
+      maxBoxesPerBinRender: 20000,
     };
     const colors = d3.schemeCategory10;
     const colorByClass = d3.scaleOrdinal(colors);
@@ -626,4 +626,5 @@
   </script>
 </body>
 </html>
+
 
