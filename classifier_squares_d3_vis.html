@@ -88,16 +88,16 @@
     // ---------- Config ----------
     const cfg = {
       svgHeight: opts.svgHeight ?? 800,
-      subplotWidth: opts.subplotWidth ?? 150,
+      subplotWidth: opts.subplotWidth ?? 200,
       classOffset: 45,
       yAxisOffset: 45,
       marginTop: 50,
       marginBottom: 120,
       baselineX: 43,
-      spacing: 1,
-      minCell: 6,
-      maxCell: opts.maxCell ?? 64,
-      rowsPerBin: opts.rowsPerBin ?? 10,
+      spacing: 2,
+      minCell: 12,
+      maxCell: opts.maxCell ?? 24,
+      rowsPerBin: opts.rowsPerBin ?? 8,
       fnSingleRow: opts.fnSingleRow ?? false,   // 关键：左侧 FN 固定单行
       maxBoxesPerBinRender: 5000,
     };
@@ -237,7 +237,7 @@
         const xRightProbe = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]);
         const xLeftProbe  = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX - leftWidth, cfg.baselineX]);
         const cellProbe   = Math.max(cfg.minCell, Math.floor(Math.min(xRightProbe.bandwidth(), xLeftProbe.bandwidth())));
-        const autoShowBoxes = (cellProbe >= cfg.minCell) && (yBin.bandwidth() >= cfg.minCell * 1.5);
+        const autoShowBoxes = (cellProbe >= cfg.minCell) && (yBin.bandwidth() >= cfg.minCell * 1.2);
         const showBoxes = (viewMode==="auto") ? autoShowBoxes : (viewMode==="boxes");
 
         const barWidth = d3.scaleLinear().domain([0, maxGlobalBinTotal]).range([0, rightWidth]).clamp(true);
@@ -365,7 +365,7 @@
               enter => enter.append("rect").attr("class","instance")
                             .attr("shape-rendering","crispEdges")
                             .attr("vector-effect","non-scaling-stroke")
-                            .attr("rx",2).attr("ry",2)
+                            .attr("rx",3).attr("ry",3)
                             .attr("x",d=>d.x).attr("y",d=>d.y)
                             .attr("width",d=>d.w).attr("height",d=>d.h)
                             .style("cursor","pointer"),
@@ -384,7 +384,7 @@
               if (bookmarked.has(d.d.instance_id)) return "#ff6b6b";
               if (d.type === "TP") return "none";
               if (d.type === "FP") return "black";
-              if (d.type === "FN") return colorByClass(d.d.true_label);
+              if (d.type === "FN") return colorByClass(d.d.pred_label);
               return "none";
             })
             .attr("stroke-width", d => bookmarked.has(d.d.instance_id) ? 3 : (d.type === "FP" || d.type === "FN") ? 1.5 : 0)
