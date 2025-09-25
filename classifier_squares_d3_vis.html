@@ -358,13 +358,13 @@
                 .on("mouseout", hideOverflowTooltip);
             }
             if (fnOverflow > 0) {
-              // FN overflow marker positioned at leftmost edge
-              const fnOverflowX = Math.max(0, cfg.baselineX - colsL * stepX - 80);
+              // FN overflow marker positioned at fixed left position
+              const fnOverflowX = 5; // Fixed position at left edge
               layer.append("text")
                 .attr("x", fnOverflowX)
                 .attr("y", binTop + binH/2)
                 .attr("fill", colorByClass(cls))
-                .style("font-size","11px").style("font-weight","700").style("cursor","pointer")
+                .style("font-size","10px").style("font-weight","700").style("cursor","pointer")
                 .style("text-anchor", "start")
                 .text(`+${fnOverflow}`)
                 .on("mouseover", ev => showOverflowTooltip(ev, fnAll.slice(cfg.maxBoxesPerBinRender), "FN", binIdx))
