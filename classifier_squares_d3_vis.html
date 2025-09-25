@@ -79,7 +79,7 @@
     </div>
   </div>
 
-  <!-- 外部数据注入容器（可选） -->
+  <!-- External data injection containers (optional) -->
   <script id="instances-json" type="application/json"></script>
   <script id="classnames-json" type="application/json"></script>
 
@@ -98,7 +98,7 @@
       minCell: 12,
       maxCell: opts.maxCell ?? 24,
       rowsPerBin: opts.rowsPerBin ?? 8,
-      fnSingleRow: opts.fnSingleRow ?? false,   // 关键：左侧 FN 固定单行
+      fnSingleRow: opts.fnSingleRow ?? false,   // Key: Fix FN to single row on left side
       maxBoxesPerBinRender: 5000,
     };
     const colors = d3.schemeCategory10;
@@ -110,7 +110,7 @@
     let currentFilter = "all";
     let iid = 0;
 
-    // 数据清洗
+    // Data cleaning
     const data = instances.map(d => ({
       true_label: +d.true_label,
       pred_label: +d.pred_label,
@@ -233,7 +233,7 @@
         const rightWidth = cfg.subplotWidth - cfg.baselineX - 10;
         const leftWidth  = cfg.baselineX - 10;
 
-        // 探测 LOD（只用于切换判断）
+        // Detect LOD (only for switching decision)
         const xRightProbe = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]);
         const xLeftProbe  = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX - leftWidth, cfg.baselineX]);
         const cellProbe   = Math.max(cfg.minCell, Math.floor(Math.min(xRightProbe.bandwidth(), xLeftProbe.bandwidth())));
@@ -261,7 +261,7 @@
         if (showBoxes){
           const layer = g.append("g").attr("class","layer boxes");
 
-          // —— 由列数反推 cell，左右统一 —— //
+          // —— Calculate cell size from column count, unified left and right —— //
           const colsTarget = Math.max(1, cfg.rowsPerBin);
           const cellR_byRows = Math.floor((rightWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
           const cellL_byRows = Math.floor((leftWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
@@ -270,26 +270,26 @@
           const stepY = cell + cfg.spacing;
 
           const colsR = Math.max(1, Math.min(colsTarget, Math.floor((rightWidth + cfg.spacing) / stepX)));
-          // 左右统一列数，左侧也用右侧的 colsR
+          // Unify column count for left and right, left side also uses colsR from right
           const colsL_singleRow = colsR;
 
           const items = [];
           for (let v=9; v>=0; v--){
             const binIdx = v, binTop = yBin(binIdx), binH = yBin.bandwidth();
 
-            // 右侧可用最大行数；左侧如果单行，则固定 1 行
+            // Max rows available on right; if single row on left, fix to 1 row
             const maxRowsRight = Math.max(1, Math.floor(binH / stepY));
             const maxRowsLeft  = cfg.fnSingleRow ? 1 : maxRowsRight;
 
-            const capRight = colsR * maxRowsRight;      // TP+FP 容量
-            const capLeft  = capRight; // FN 容量与右侧一致
+            const capRight = colsR * maxRowsRight;      // TP+FP capacity
+            const capLeft  = capRight; // FN capacity matches right side
 
-            // 过滤
+            // Filtering
             const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
             const fpAll = bins[binIdx].FP.filter(d => shouldShow(d, "FP"));
             const fnAll = bins[binIdx].FN.filter(d => shouldShow(d, "FN"));
 
-            // 容量裁剪：先 TP，再 FP；FN 单行裁剪
+            // Capacity trimming: TP first, then FP; FN single row trimming
             const tp = tpAll.slice(0, Math.min(capRight, cfg.maxBoxesPerBinRender));
             const fp = fpAll.slice(0, Math.min(Math.max(0, capRight - tp.length), Math.max(0, cfg.maxBoxesPerBinRender - tp.length)));
             const fn = fnAll.slice(0, Math.min(capLeft, cfg.maxBoxesPerBinRender));
@@ -298,7 +298,7 @@
             const fpOverflow = Math.max(0, fpAll.length - fp.length);
             const fnOverflow = Math.max(0, fnAll.length - fn.length);
 
-            // --- TP（右侧，按行列网格）---
+            // --- TP (right side, grid layout) ---
             tp.forEach((d,i)=>{
               const col = i % colsR, row = Math.floor(i / colsR);
               const x = Math.round(cfg.baselineX + col * stepX);
@@ -306,7 +306,7 @@
               items.push({key:`TP-${cls}-${binIdx}-${d.instance_id}`, type:"TP", d, x, y, w:cell, h:cell});
             });
 
-            // --- FP（接在 TP 之后）---
+            // --- FP (following TP) ---
             const start = Math.min(tpAll.length, cfg.maxBoxesPerBinRender);
             fp.forEach((d,i)=>{
               const k = start + i;
@@ -316,8 +316,8 @@
               items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x, y, w:cell, h:cell});
             });
 
-            // --- FN（左侧，单行从 baseline 向左排，不换行）---
-            // 多行排列 FN（和右侧一致）
+            // --- FN (left side, single row from baseline leftward, no wrapping) ---
+            // Multi-row FN arrangement (consistent with right side)
             fn.forEach((d,i)=>{
               const col = i % colsR, row = Math.floor(i / colsR);
               const x = Math.round(cfg.baselineX - (col + 1) * stepX);
@@ -325,7 +325,7 @@
               items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
             });
 
-            // 溢出标记
+            // Overflow markers
             if (tpOverflow > 0) {
               layer.append("text")
                 .attr("x", cfg.baselineX + (cfg.subplotWidth - cfg.baselineX) - 28)
@@ -358,7 +358,7 @@
             }
           }
 
-          // 统一渲染（像素对齐）
+          // Unified rendering (pixel aligned)
           const rects = layer.selectAll("rect.instance")
             .data(items, d=>d.key)
             .join(
@@ -375,8 +375,8 @@
               exit => exit.remove()
             )
             .attr("fill", d => {
-              if (d.type === "TP") return "#3498db";  // 全蓝色
-              if (d.type === "FP") return "#e74c3c";  // 全红色
+              if (d.type === "TP") return "#3498db";  // All blue
+              if (d.type === "FP") return "#e74c3c";  // All red
               if (d.type === "FN") return "white";
               return "#ccc";
             })
@@ -391,7 +391,7 @@
             .style("fill-opacity", d => d.type === "FP" ? 0.6 : 1)
             .style("opacity", d => bookmarked.has(d.d.instance_id) ? 1 : 0.85);
 
-          // 交互：悬停显示详细信息，点击收藏，双击弹窗详情
+          // Interactions: hover for details, click to bookmark, double-click for popup
           const tip = d3.select("#tooltip");
           rects.on("mouseover", (ev,dd)=>{
               const d = dd.d;
@@ -432,8 +432,8 @@
           const bars = [];
           for (let v=9; v>=0; v--){
             const binIdx = v, binY = yBin(binIdx) + (yBin.bandwidth()-16)/2;
-            // 在Stack模式中，只按预测标签显示，避免重复
-            // 只显示预测为当前类别的实例（TP + FP）
+            // In Stack mode, only show by predicted label to avoid duplication
+            // Only show instances predicted as current class (TP + FP)
             const tp = bins[binIdx].TP.filter(d => shouldShow(d,"TP")).length;
             const fp = bins[binIdx].FP.filter(d => shouldShow(d,"FP")).length;
             const total = tp + fp, w = barWidth(total);
@@ -453,8 +453,8 @@
             )
             .attr("fill", d => {
               if (d.type === "FN") return "white";
-              if (d.type === "TP") return "#3498db";  // 全蓝色
-              if (d.type === "FP") return "#e74c3c";  // 全红色
+              if (d.type === "TP") return "#3498db";  // All blue
+              if (d.type === "FP") return "#e74c3c";  // All red
               return colorByClass(cls);
             })
             .attr("stroke", d => d.type==="FN" ? colorByClass(cls) : (d.type==="FP" ? "black" : "none"))
@@ -570,7 +570,7 @@
     draw("auto");
   }
 
-  // ---------- 启动 ----------
+  // ---------- Bootstrap ----------
  (function boot(){
   const instEl  = document.getElementById('instances-json');
   const namesEl = document.getElementById('classnames-json');
@@ -598,9 +598,9 @@
     if (mount) {
       mount.innerHTML = `
         <div style="text-align:center; padding:40px; color:#666; font-size:14px; background:#fff;">
-          <h3 style="margin-top:0;">🚫 未检测到实例数据</h3>
-          <p>请将你的数据写入 <code>&lt;script id="instances-json" type="application/json"&gt;...&lt;/script&gt;</code>。</p>
-          <p>可选：将类名写入 <code>&lt;script id="classnames-json" ...&gt;</code>。</p>
+          <h3 style="margin-top:0;">🚫 No Instance Data Detected</h3>
+          <p>Please insert your data into <code>&lt;script id="instances-json" type="application/json"&gt;...&lt;/script&gt;</code>.</p>
+          <p>Optional: Insert class names into <code>&lt;script id="classnames-json" ...&gt;</code>.</p>
         </div>`;
     }
     console.error("No instances provided. Aborting render.");
