@@ -88,7 +88,7 @@
     // ---------- Config ----------
     const cfg = {
       svgHeight: opts.svgHeight ?? 800,
-      subplotWidth: opts.subplotWidth ?? 220,  // Increased width for better spacing
+      subplotWidth: opts.subplotWidth ?? 200,  // Reduced width for more compact layout
       classOffset: 45,
       yAxisOffset: 45,
       marginTop: 50,
@@ -358,8 +358,8 @@
                 .on("mouseout", hideOverflowTooltip);
             }
             if (fnOverflow > 0) {
-              // FN overflow marker positioned at far left edge
-              const fnOverflowX = Math.max(1, cfg.baselineX - colsL * stepX - 42);
+              // FN overflow marker positioned at leftmost edge
+              const fnOverflowX = Math.max(0, cfg.baselineX - colsL * stepX - 50);
               layer.append("text")
                 .attr("x", fnOverflowX)
                 .attr("y", binTop + binH/2)
