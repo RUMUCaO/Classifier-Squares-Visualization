@@ -93,7 +93,7 @@
       yAxisOffset: 45,
       marginTop: 50,
       marginBottom: 120,
-      baselineX: 75,  // Further increased baseline position for more FN space
+      baselineX: 85,  // Maximum baseline position for optimal FN space
       spacing: 2,
       minCell: 12,
       maxCell: opts.maxCell ?? 24,
@@ -231,7 +231,7 @@
         const bins = perClassBins.get(cls);
 
         const rightWidth = cfg.subplotWidth - cfg.baselineX - 10;
-        const leftWidth  = cfg.baselineX - 5;  // Give more space to left side
+        const leftWidth  = cfg.baselineX - 2;  // Maximize left side space
 
         // Detect LOD (only for switching decision)
         const xRightProbe = d3.scaleBand().domain(d3.range(cfg.rowsPerBin)).range([cfg.baselineX, cfg.baselineX + rightWidth]);
@@ -266,7 +266,7 @@
           
           // Ensure minimum spacing from edges to prevent collision
           const rightSafeWidth = rightWidth - 20; // Reserve 20px on right
-          const leftSafeWidth = leftWidth - 8;    // Reduce left reserve to allow more FN boxes
+          const leftSafeWidth = leftWidth - 5;    // Minimize left reserve for maximum FN space
           
           const cellR_byRows = Math.floor((rightSafeWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
           const cellL_byRows = Math.floor((leftSafeWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
@@ -327,7 +327,7 @@
               const x = Math.round(cfg.baselineX - (col + 1) * stepX);
               const y = Math.round(binTop + binH - (row + 1) * stepY);
               // Ensure FN doesn't go beyond left boundary (protect from adjacent class collision)
-              const minX = 8; // Minimum left margin to prevent collision
+              const minX = 3; // Reduced minimum left margin for more space
               const safeX = Math.max(minX, x);
               items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x:safeX, y, w:cell, h:cell});
             });
@@ -358,8 +358,8 @@
                 .on("mouseout", hideOverflowTooltip);
             }
             if (fnOverflow > 0) {
-              // FN overflow marker positioned further left
-              const fnOverflowX = Math.max(2, cfg.baselineX - colsL * stepX - 35);
+              // FN overflow marker positioned at far left edge
+              const fnOverflowX = Math.max(1, cfg.baselineX - colsL * stepX - 42);
               layer.append("text")
                 .attr("x", fnOverflowX)
                 .attr("y", binTop + binH/2)
