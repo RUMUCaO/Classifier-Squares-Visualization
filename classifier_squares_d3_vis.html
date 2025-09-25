@@ -88,12 +88,12 @@
     // ---------- Config ----------
     const cfg = {
       svgHeight: opts.svgHeight ?? 800,
-      subplotWidth: opts.subplotWidth ?? 200,
+      subplotWidth: opts.subplotWidth ?? 220,  // Increased width for better spacing
       classOffset: 45,
       yAxisOffset: 45,
       marginTop: 50,
       marginBottom: 120,
-      baselineX: 43,
+      baselineX: 55,  // Increased baseline position to provide more left space
       spacing: 2,
       minCell: 12,
       maxCell: opts.maxCell ?? 24,
@@ -261,17 +261,22 @@
         if (showBoxes){
           const layer = g.append("g").attr("class","layer boxes");
 
-          // —— Calculate cell size from column count, unified left and right —— //
+          // —— Calculate cell size with collision prevention —— //
           const colsTarget = Math.max(1, cfg.rowsPerBin);
-          const cellR_byRows = Math.floor((rightWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
-          const cellL_byRows = Math.floor((leftWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
+          
+          // Ensure minimum spacing from edges to prevent collision
+          const rightSafeWidth = rightWidth - 20; // Reserve 20px on right
+          const leftSafeWidth = leftWidth - 15;   // Reserve 15px on left
+          
+          const cellR_byRows = Math.floor((rightSafeWidth - (colsTarget - 1) * cfg.spacing) / colsTarget);
+          const cellL_byRows = Math.floor((leftSafeWidth  - (colsTarget - 1) * cfg.spacing) / colsTarget);
           const cell = Math.max(cfg.minCell, Math.min(cellR_byRows, cellL_byRows, cfg.maxCell));
           const stepX = cell + cfg.spacing;
           const stepY = cell + cfg.spacing;
 
-          const colsR = Math.max(1, Math.min(colsTarget, Math.floor((rightWidth + cfg.spacing) / stepX)));
-          // Unify column count for left and right, left side also uses colsR from right
-          const colsL_singleRow = colsR;
+          const colsR = Math.max(1, Math.min(colsTarget, Math.floor((rightSafeWidth + cfg.spacing) / stepX)));
+          // Left side column calculation with safe boundaries
+          const colsL = Math.max(1, Math.min(colsTarget, Math.floor((leftSafeWidth + cfg.spacing) / stepX)));
 
           const items = [];
           for (let v=9; v>=0; v--){
@@ -282,7 +287,7 @@
             const maxRowsLeft  = cfg.fnSingleRow ? 1 : maxRowsRight;
 
             const capRight = colsR * maxRowsRight;      // TP+FP capacity
-            const capLeft  = capRight; // FN capacity matches right side
+            const capLeft  = colsL * maxRowsLeft;       // FN capacity uses left column count
 
             // Filtering
             const tpAll = bins[binIdx].TP.filter(d => shouldShow(d, "TP"));
@@ -316,42 +321,51 @@
               items.push({key:`FP-${cls}-${binIdx}-${d.instance_id}`, type:"FP", d, x, y, w:cell, h:cell});
             });
 
-            // --- FN (left side, single row from baseline leftward, no wrapping) ---
-            // Multi-row FN arrangement (consistent with right side)
+            // --- FN (left side, multi-row arrangement with boundary protection) ---
             fn.forEach((d,i)=>{
-              const col = i % colsR, row = Math.floor(i / colsR);
+              const col = i % colsL, row = Math.floor(i / colsL); // Use left column count
               const x = Math.round(cfg.baselineX - (col + 1) * stepX);
               const y = Math.round(binTop + binH - (row + 1) * stepY);
-              items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x, y, w:cell, h:cell});
+              // Ensure FN doesn't go beyond left boundary (protect from adjacent class collision)
+              const minX = 8; // Minimum left margin to prevent collision
+              const safeX = Math.max(minX, x);
+              items.push({key:`FN-${cls}-${binIdx}-${d.instance_id}`, type:"FN", d, x:safeX, y, w:cell, h:cell});
             });
 
-            // Overflow markers
+            // Overflow markers with better positioning
             if (tpOverflow > 0) {
+              const overflowX = Math.min(cfg.subplotWidth - 35, cfg.baselineX + colsR * stepX + 5);
               layer.append("text")
-                .attr("x", cfg.baselineX + (cfg.subplotWidth - cfg.baselineX) - 28)
+                .attr("x", overflowX)
                 .attr("y", binTop + 12)
-                .attr("fill", colorByClass(cls))
-                .style("font-size","12px").style("font-weight","700").style("cursor","pointer")
+                .attr("fill", "#3498db")
+                .style("font-size","11px").style("font-weight","700").style("cursor","pointer")
+                .style("text-anchor", "start")
                 .text(`+${tpOverflow}`)
                 .on("mouseover", ev => showOverflowTooltip(ev, tpAll.slice(cfg.maxBoxesPerBinRender), "TP", binIdx))
                 .on("mouseout", hideOverflowTooltip);
             }
             if (fpOverflow > 0) {
+              const overflowX = Math.min(cfg.subplotWidth - 35, cfg.baselineX + colsR * stepX + 5);
               layer.append("text")
-                .attr("x", cfg.baselineX + (cfg.subplotWidth - cfg.baselineX) - 28)
-                .attr("y", binTop + 28)
-                .attr("fill", "#000")
-                .style("font-size","12px").style("font-weight","700").style("cursor","pointer")
+                .attr("x", overflowX)
+                .attr("y", binTop + 26)
+                .attr("fill", "#e74c3c")
+                .style("font-size","11px").style("font-weight","700").style("cursor","pointer")
+                .style("text-anchor", "start")
                 .text(`+${fpOverflow}`)
                 .on("mouseover", ev => showOverflowTooltip(ev, fpAll.slice(cfg.maxBoxesPerBinRender), "FP", binIdx))
                 .on("mouseout", hideOverflowTooltip);
             }
             if (fnOverflow > 0) {
+              // FN overflow marker positioned safely on the left with proper spacing
+              const fnOverflowX = Math.max(10, cfg.baselineX - colsL * stepX - 30);
               layer.append("text")
-                .attr("x", 12)
-                .attr("y", binTop + 20)
+                .attr("x", fnOverflowX)
+                .attr("y", binTop + binH/2)
                 .attr("fill", colorByClass(cls))
-                .style("font-size","12px").style("font-weight","700").style("cursor","pointer")
+                .style("font-size","11px").style("font-weight","700").style("cursor","pointer")
+                .style("text-anchor", "start")
                 .text(`+${fnOverflow}`)
                 .on("mouseover", ev => showOverflowTooltip(ev, fnAll.slice(cfg.maxBoxesPerBinRender), "FN", binIdx))
                 .on("mouseout", hideOverflowTooltip);
