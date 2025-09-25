@@ -190,8 +190,13 @@
           bins[b].FP.push(d);
         }
         // FN: 真实标签是当前类别 cls，但预测不是 cls
+        // 使用当前类别的分数来分桶，而不是预测类别的分数
         else if (d.true_label === cls && d.pred_label !== cls) {
-          const b = binIndex(d.pred_score);
+          // 如果有class_scores，使用当前类别的分数；否则使用较低的默认值
+          const scoreForThisClass = (d.class_scores && d.class_scores[cls] !== undefined) 
+            ? d.class_scores[cls] 
+            : (1 - d.pred_score); // 简单估算：如果没有具体分数，用1-pred_score作为近似
+          const b = binIndex(scoreForThisClass);
           bins[b].FN.push(d);
         }
       });
