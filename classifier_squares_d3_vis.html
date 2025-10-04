@@ -6,19 +6,18 @@
   <title>Classifier Squares D3 Visualization (Scaled & LOD)</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-  :root{ --c-red: #e74c3c; --c-poly: var(--c-red); --c-tp: #3498db; --c-fp: #e74c3c; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
-    #multi-class-container { width: 100%; min-height: 900px; overflow: auto; border:1px solid #ccc; padding:30px; background:#fafafa; }
-    #multi-class-vis svg { display:block; overflow:visible; background:#fff; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.08); }
-    .legend { background:#f8f9fa; border:1px solid #ddd; border-radius:8px; padding:15px; margin-top:20px; font-size:12px; }
+    #multi-class-container { width: 100%; min-height: 900px; overflow: auto; border:1px solid #ccc; padding:30px; background:white; }
+    #multi-class-vis svg { display:block; overflow:visible; background:white; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.08); }
+    .legend { background:white; border:1px solid #ddd; border-radius:8px; padding:15px; margin-top:20px; font-size:12px; }
     .legend-item { display:inline-block; margin-right:20px; margin-bottom:8px; }
     .legend-color { display:inline-block; width:16px; height:16px; margin-right:5px; vertical-align:middle; border:1px solid #333; }
     .control-panel { margin-top: 20px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .axis text { font-size:12px; fill:#333; }
     .btn { padding:5px 10px; border:none; border-radius:4px; color:#fff; cursor:pointer; }
     .btn-green { background:#2ecc71; }
-    .btn-red { background:var(--c-red); }
-    .btn-blue { background:var(--c-tp); }
+    .btn-red { background:#e74c3c; }
+    .btn-blue { background:#3498db; }
   </style>
 </head>
 <body>
@@ -63,7 +62,7 @@
         </div>
         <div>
           <label style="font-weight:bold;">📊 Analysis:</label>
-          <button id="confusion-analysis" class="btn btn-red" style="margin-left:6px;">Confusion Report</button>
+          <button id="confusion-analysis" class="btn btn-blue" style="margin-left:6px;">Confusion Report</button>
         </div>
       </div>
     </div>
@@ -72,10 +71,10 @@
       <h4 style="margin:0 0 10px 0; color:#333;">📖 Visualization Legend</h4>
       <div style="display:flex; flex-wrap:wrap; gap:15px;">
         <div class="legend-item"><span class="legend-color" style="background:#3498db; border:none;"></span><strong>TP (True Positives)</strong>: Correctly classified - colored box, no border</div>
-  <div class="legend-item"><span class="legend-color" style="background:var(--c-red); border:1px solid black;"></span><strong>FP (False Positives)</strong>: Incorrectly classified as this class - colored fill + black border</div>
+        <div class="legend-item"><span class="legend-color" style="background:#e74c3c; border:1px solid black;"></span><strong>FP (False Positives)</strong>: Incorrectly classified as this class - colored fill + black border</div>
         <div class="legend-item"><span class="legend-color" style="background:white; border:1px solid #3498db;"></span><strong>FN (False Negatives)</strong>: Should belong to this class but missed - white fill + colored border</div>
         <div class="legend-item"><span style="display:inline-block; width:16px; height:2px; background:#333; margin-right:5px; vertical-align:middle;"></span><strong>Baseline</strong></div>
-  <div class="legend-item"><span style="display:inline-block; width:16px; height:2px; background:var(--c-red); margin-right:5px; vertical-align:middle;"></span><strong>Polyline</strong></div>
+        <div class="legend-item"><span style="display:inline-block; width:16px; height:2px; background:#ff6b35; margin-right:5px; vertical-align:middle;"></span><strong>Polyline</strong></div>
       </div>
     </div>
   </div>
@@ -104,9 +103,6 @@
     };
     const colors = d3.schemeCategory10;
     const colorByClass = d3.scaleOrdinal(colors);
-    // Canonical red from CSS root; fallback to hex if unavailable
-    const RED = (typeof window !== 'undefined' && window.getComputedStyle) ?
-      getComputedStyle(document.documentElement).getPropertyValue('--c-red').trim() || '#e74c3c' : '#e74c3c';
 
     // ---------- State ----------
     let bookmarked = new Set();
@@ -202,7 +198,7 @@
       const maxShow = 20;
       const html = `
         <div style="max-width:340px; max-height:260px; overflow-y:auto; font-size:12px;
-                    background:#fffbe6; border:2px solid ${RED}; border-radius:6px;
+                    background:#fffbe6; border:2px solid #ff6b35; border-radius:6px;
                     box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:10px;">
           <b>${type} overflow in bin ${binIdx} (showing ${Math.min(maxShow, arr.length)})</b>
           <ul style="margin:6px 0 0 0; padding:0; list-style:none;">
@@ -339,7 +335,7 @@
             // Overflow markers with better positioning
             if (tpOverflow > 0) {
               const overflowX = Math.min(cfg.subplotWidth - 35, cfg.baselineX + colsR * stepX + 5);
-          layer.append("text")
+              layer.append("text")
                 .attr("x", overflowX)
                 .attr("y", binTop + 12)
                 .attr("fill", "#3498db")
@@ -354,7 +350,7 @@
               layer.append("text")
                 .attr("x", overflowX)
                 .attr("y", binTop + 26)
-                .attr("fill", RED)
+                .attr("fill", "#e74c3c")
                 .style("font-size","11px").style("font-weight","700").style("cursor","pointer")
                 .style("text-anchor", "start")
                 .text(`+${fpOverflow}`)
@@ -394,12 +390,12 @@
             )
             .attr("fill", d => {
               if (d.type === "TP") return "#3498db";  // All blue
-              if (d.type === "FP") return RED;  // All red
+              if (d.type === "FP") return "#e74c3c";  // All red
               if (d.type === "FN") return "white";
               return "#ccc";
             })
             .attr("stroke", d => {
-              if (bookmarked.has(d.d.instance_id)) return RED;
+              if (bookmarked.has(d.d.instance_id)) return "#ff6b6b";
               if (d.type === "TP") return "none";
               if (d.type === "FP") return "black";
               if (d.type === "FN") return colorByClass(d.d.pred_label);
@@ -439,7 +435,7 @@
                     <p style="word-break:break-all;"><b>All Scores:</b> ${scores}</p>
                   </div>
                   <div style="text-align:center; margin-top:12px;">
-                    <button onclick="this.parentElement.parentElement.remove()" class="btn btn-red" style="padding:8px 16px;">Close</button>
+                    <button onclick="this.parentElement.parentElement.remove()" style="padding:8px 16px; background:#3498db; color:#fff; border:none; border-radius:4px; cursor:pointer;">Close</button>
                   </div>
                 </div>`;
               document.body.insertAdjacentHTML("beforeend", html);
@@ -472,7 +468,7 @@
             .attr("fill", d => {
               if (d.type === "FN") return "white";
               if (d.type === "TP") return "#3498db";  // All blue
-              if (d.type === "FP") return RED;  // All red
+              if (d.type === "FP") return "#e74c3c";  // All red
               return colorByClass(cls);
             })
             .attr("stroke", d => d.type==="FN" ? colorByClass(cls) : (d.type==="FP" ? "black" : "none"))
@@ -497,8 +493,8 @@
         y: yScale(s), score:s, idx:i
       }));
       const line = d3.line().x(d=>d.x).y(d=>d.y);
-  poly.append("path").datum(pts).attr("d",line).attr("stroke",RED).attr("stroke-width",2).attr("fill","none").attr("opacity",0.9).style("pointer-events","none");
-  poly.selectAll("circle.dot").data(pts).join("circle").attr("class","dot").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",3.5).attr("fill",RED).attr("stroke","#fff").attr("stroke-width",1).style("pointer-events","none");
+      poly.append("path").datum(pts).attr("d",line).attr("stroke","#ff6b35").attr("stroke-width",2).attr("fill","none").attr("opacity",0.9).style("pointer-events","none");
+      poly.selectAll("circle.dot").data(pts).join("circle").attr("class","dot").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",3.5).attr("fill","#ff6b35").attr("stroke","#fff").attr("stroke-width",1).style("pointer-events","none");
     }
     function hidePolyline(){ poly.selectAll("*").remove(); }
 
@@ -513,7 +509,7 @@
             <p style="word-break:break-all;"><b>All Scores:</b> ${scores}</p>
           </div>
           <div style="text-align:center; margin-top:12px;">
-            <button onclick="this.parentElement.parentElement.remove()" class="btn btn-red">Close</button>
+            <button onclick="this.parentElement.parentElement.remove()" class="btn btn-blue">Close</button>
           </div>
         </div>`;
       document.body.insertAdjacentHTML("beforeend", html);
